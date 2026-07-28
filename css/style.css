@@ -16,16 +16,19 @@
   --pf-tag-bg: #f0efeb;   /* provenance tag fill */
   --pf-accent: #c4441a;   /* the ONLY decorative color — used for leads & refs */
 
-  /* Status vocabulary — light-mode friendly, functional only */
-  --pf-st-reachable: #1a7f4f;  /* reachable */
-  --pf-st-active:    #1a6f8f;  /* active — anonymous */
-  --pf-st-dormant:   #6b6b6b;  /* dormant */
-  --pf-st-lost:      #a8681b;  /* possibly lost */
-  --pf-st-vault:     #6b4a9b;  /* vault / likely held */
-  --pf-st-heldna:    #333333;  /* held — not available */
-  --pf-st-inst:      #1a3a6f;  /* held — institutional */
-  --pf-st-burned:    #7a1a1a;  /* burned */
-  --pf-st-lead:      #c4441a;  /* lead */
+  /* Status vocabulary — colored by activity/reachability, not good/bad.
+     Blue = reachable/recently active; grey = known but quiet; amber =
+     inactive; red = long inactive / possibly lost; wine = listed for sale. */
+  --pf-st-reachable: #638596;  /* reachable / recently active (CryptoPunks blue) */
+  --pf-st-active:    #638596;  /* recently active — anonymous */
+  --pf-st-known:     #6b6b6b;  /* known but not very active (contracts, institutions) */
+  --pf-st-inactive:  #8a6410;  /* inactive */
+  --pf-st-lost:      #a5352a;  /* long inactive / possibly lost */
+  --pf-st-listed:    #95554f;  /* listed for sale (CryptoPunks for-sale color) */
+  /* reserved for full §6 verdicts */
+  --pf-st-vault:     #6b4a9b;
+  --pf-st-inst:      #1a3a6f;
+  --pf-st-burned:    #7a1a1a;
 
   /* Type */
   --pf-font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
@@ -52,6 +55,10 @@
   -webkit-font-smoothing: antialiased;
   max-width: 1120px;
   margin-inline: auto;
+  /* Never split a word across lines or hyphenate — wrap the whole word. */
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: none;
 }
 .pf-page h1, .pf-page h2, .pf-page p, .pf-page ol, .pf-page ul {
   margin: 0;
@@ -201,6 +208,19 @@
 .pf-case-meta strong { color: var(--pf-ink); font-weight: 500; }
 
 /* --------------------------------------------------------------------------
+   Claim line — original claim provenance, above the token panels
+   -------------------------------------------------------------------------- */
+.pf-claim {
+  font-family: var(--pf-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--pf-meta);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--pf-hair);
+}
+.pf-claim strong { color: var(--pf-ink); font-weight: 500; }
+
+/* --------------------------------------------------------------------------
    Token panels (V1 / V2)
    -------------------------------------------------------------------------- */
 .pf-panels {
@@ -258,7 +278,8 @@
   font-size: 13px;
   color: var(--pf-ink);
   line-height: 1.5;
-  word-break: break-all;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 .pf-sub {
   display: block;
@@ -356,13 +377,13 @@
 }
 .pf-status--reachable { color: var(--pf-st-reachable); }
 .pf-status--active    { color: var(--pf-st-active); }
-.pf-status--dormant   { color: var(--pf-st-dormant); }
+.pf-status--known     { color: var(--pf-st-known); }
+.pf-status--inactive  { color: var(--pf-st-inactive); }
 .pf-status--lost      { color: var(--pf-st-lost); }
+.pf-status--listed    { color: var(--pf-st-listed); }
 .pf-status--vault     { color: var(--pf-st-vault); }
-.pf-status--heldna    { color: var(--pf-st-heldna); }
 .pf-status--inst      { color: var(--pf-st-inst); }
 .pf-status--burned    { color: var(--pf-st-burned); }
-.pf-status--lead      { color: var(--pf-st-lead); }
 
 /* Signs-of-life prose */
 .pf-signs {

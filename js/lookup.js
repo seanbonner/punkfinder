@@ -4,7 +4,7 @@
 // full §6 status verdicts fill in later. Status pill uses the canonical
 // vocabulary keys (reachable/active/dormant/lost/vault/heldna/inst/burned/lead).
 
-import { fetchPunk, fetchAccountStats } from "/js/indexer.js";
+import { fetchPunk, fetchAccountStats, fetchClaim } from "/js/indexer.js";
 import { getCodeInfo } from "/js/rpc.js";
 import { knownFor } from "/js/known.js";
 import { resolveEns } from "/js/ens.js";
@@ -54,15 +54,20 @@ function relTime(ts) {
 const evmLink = (addr, text) =>
   isZero(addr) ? esc(text || short(addr)) : `<a href="${S.evmNowAddressBase}${addr}" target="_blank" rel="noopener">${esc(text || short(addr))}</a>`;
 
-// Status pill (canonical vocabulary key + human label). First-pass mapping of
-// what we currently compute; §6 verdicts add lost/vault/burned/inst later.
+// Status pill (canonical vocabulary key + human label). Colored by activity/
+// reachability, not good/bad: blue = reachable/recently active, grey = known
+// but quiet, amber = inactive, red = long inactive. `listed` (wine) and the §6
+// verdicts (vault/inst/burned) land with the market + status layers.
 function statusFor({ stats, isContract, ens }, known) {
-  if (known && known.category === "lending") return { key: "lead", label: `Lead — ${known.label}` };
-  if (isContract === true) return { key: "heldna", label: "Held — contract" };
-  const active = stats?.lastActiveAt != null && Date.now() / 1000 - stats.lastActiveAt <= DORMANT_AFTER;
-  if (ens) return { key: "reachable", label: "Reachable" };
-  if (active) return { key: "active", label: "Active — anonymous" };
-  return { key: "dormant", label: "Dormant" };
+  if (known) return { key: "known", label: `Held — ${known.label}` };
+  if (isContract === true) return { key: "known", label: "Held — contract" };
+  const last = stats?.lastActiveAt;
+  const age = last != null ? Date.now() / 1000 - last : Infinity;
+  const recent = age <= DORMANT_AFTER;
+  if (ens) return { key: recent ? "reachable" : "known", label: recent ? "Reachable" : "Reachable — quiet" };
+  if (recent) return { key: "active", label: "Active — anonymous" };
+  if (age > 5 * YEAR) return { key: "lost", label: "Long inactive" };
+  return { key: "inactive", label: "Inactive" };
 }
 
 // Signs-of-life evidence prose that sits under the status pill.
@@ -199,6 +204,13 @@ function caseHead(id, v1, v2) {
   </section>`;
 }
 
+function claimLine(claim) {
+  if (!claim || !claim.at) return "";
+  const date = new Date(claim.at * 1000).toISOString().slice(0, 10);
+  const by = claim.by && !isZero(claim.by) ? ` · originally claimed by ${evmLink(claim.by)}` : "";
+  return `<div class="pf-claim">Claimed <strong>${date}</strong>${by}</div>`;
+}
+
 function linkOuts(id, v2Owner) {
   const links = [
     [`${S.cryptopunksDetailsBase}${id}`, `cryptopunks.app/${id}`],
@@ -247,10 +259,11 @@ async function render(id) {
       out.innerHTML = `<p class="pf-note"><strong>Case #${id} · not found.</strong> No V1 or V2 record for this id. Try another punk number, 0–9999.</p>`;
       return;
     }
-    const enrichFor = await enrichOwners(v1, v2);
+    const [enrichFor, claim] = await Promise.all([enrichOwners(v1, v2), fetchClaim(id).catch(() => null)]);
     out.innerHTML =
       caseHead(id, v1, v2) +
-      `<section class="pf-panels">${tokenPanel("V1", v1, enrichFor(v1))}${tokenPanel("V2", v2, enrichFor(v2))}</section>` +
+      claimLine(claim) +
+      `<section class="pf-panels">${tokenPanel("V2", v2, enrichFor(v2))}${tokenPanel("V1", v1, enrichFor(v1))}</section>` +
       linkOuts(id, v2?.owner || v1?.owner);
     out.scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (err) {

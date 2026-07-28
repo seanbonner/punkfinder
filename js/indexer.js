@@ -41,6 +41,22 @@ export async function fetchPunk(id) {
   };
 }
 
+// Original claim: the first `assign` event on the V1 contract — when the punk
+// was first claimed, and by whom. This is the deepest provenance point.
+const CLAIM_QUERY = `
+  query Claim($id: BigInt!) {
+    events(where: { punk_id: $id, type: "assign", source: "cryptopunks_v1" }, orderBy: "timestamp", orderDirection: "asc", limit: 1) {
+      items { to timestamp }
+    }
+  }
+`;
+
+export async function fetchClaim(id) {
+  const data = await gql(CLAIM_QUERY, { id: String(id) });
+  const it = data.events?.items?.[0];
+  return it ? { at: Number(it.timestamp), by: it.to } : null;
+}
+
 // Whole-wallet liveness. `lastActiveAt` tracks tx-from on the EOA — any signed
 // transaction, not just punk activity (spec §5). The spend/earn aggregates in
 // the same response ARE punk-scoped; we ignore them here.
