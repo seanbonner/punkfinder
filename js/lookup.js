@@ -9,6 +9,7 @@ import { getCodeInfo } from "/js/rpc.js";
 import { knownFor } from "/js/known.js";
 import { resolveEns } from "/js/ens.js";
 import { resolveProfile } from "/js/identity.js";
+import { getTraits } from "/js/traits.js";
 
 const S = window.SITE;
 const $ = (sel) => document.querySelector(sel);
@@ -235,16 +236,24 @@ function tokenPanel(kind, id, token, enrich) {
   </article>`;
 }
 
-function caseHead(id, v1, v2) {
+function caseHead(id, v1, v2, traits) {
   let custody = "—";
   if (v1 && v2 && !isZero(v1.owner) && !isZero(v2.owner)) {
     custody = v1.owner.toLowerCase() === v2.owner.toLowerCase() ? "SAME CUSTODY (paired)" : "SPLIT CUSTODY";
   }
+  const eyebrow = traits
+    ? `Case #${id} · ${esc(traits.t)} · #${traits.r.toLocaleString()} rarity`
+    : `Case #${id} · CryptoPunk · V1 + V2`;
+  const attrs =
+    traits && traits.a?.length
+      ? `<div class="pf-case-attrs">${traits.a.map((a) => `<span>${esc(a)}</span>`).join("")}</div>`
+      : "";
   return `<section class="pf-case-head">
     <img class="pf-punk-img" src="${S.imageBase}${id}/image?transparent=true&bg=f0efeb" alt="CryptoPunk #${id}" width="88" height="88">
     <div class="pf-case-title">
-      <div class="pf-case-eyebrow">Case #${id} · CryptoPunk · V1 + V2</div>
+      <div class="pf-case-eyebrow">${eyebrow}</div>
       <h1 class="pf-case-id">Punk ${id}</h1>
+      ${attrs}
     </div>
     <div class="pf-case-meta">
       V1 &amp; V2 <strong>${custody}</strong><br>
@@ -300,9 +309,13 @@ async function render(id) {
       out.innerHTML = `<p class="pf-note"><strong>Case #${id} · not found.</strong> No V1 or V2 record for this id. Try another punk number, 0–9999.</p>`;
       return;
     }
-    const [enrichFor, claim] = await Promise.all([enrichOwners(v1, v2), fetchClaim(id).catch(() => null)]);
+    const [enrichFor, claim, traits] = await Promise.all([
+      enrichOwners(v1, v2),
+      fetchClaim(id).catch(() => null),
+      getTraits(id).catch(() => null),
+    ]);
     out.innerHTML =
-      caseHead(id, v1, v2) +
+      caseHead(id, v1, v2, traits) +
       claimLine(claim) +
       `<section class="pf-panels">${tokenPanel("V2", id, v2, enrichFor(v2))}${tokenPanel("V1", id, v1, enrichFor(v1))}</section>`;
     out.scrollIntoView({ behavior: "smooth", block: "nearest" });
