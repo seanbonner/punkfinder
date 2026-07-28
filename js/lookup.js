@@ -5,6 +5,7 @@
 import { fetchPunk, fetchAccountStats } from "/js/indexer.js";
 import { isContract } from "/js/rpc.js";
 import { knownFor } from "/js/known.js";
+import { resolveEns } from "/js/ens.js";
 
 const S = window.SITE;
 const $ = (sel) => document.querySelector(sel);
@@ -99,8 +100,15 @@ function tokenPanel(kind, id, token, enrich) {
   if (!token) {
     return `<section class="token"><h3>${kind}</h3><p class="token__none">No ${kind} record found for this id.</p></section>`;
   }
-  const { stats, isContract: holderIsContract } = enrich || {};
+  const { stats, isContract: holderIsContract, ens } = enrich || {};
   const known = knownFor(token.owner);
+  const identityRow = ens
+    ? `<dt>Identity</dt><dd>${
+        ens.avatar
+          ? `<img class="ens-avatar" src="${esc(ens.avatar)}" alt="" width="18" height="18" onerror="this.style.display='none'">`
+          : ""
+      }<a href="${S.evmNowAddressBase}${token.owner}" target="_blank" rel="noopener">${esc(ens.name)}</a> <span class="muted">· via ENS reverse record</span></dd>`
+    : "";
   const life = liveness(stats, holderIsContract === true, known);
   const holder = short(token.owner);
   const tag = known
@@ -119,6 +127,7 @@ function tokenPanel(kind, id, token, enrich) {
       <h3>${kind}</h3>
       <dl class="token__facts">
         <dt>Holder</dt><dd>${holderLink}${tag}</dd>
+        ${identityRow}
         <dt>Custody</dt><dd>${custodyLine(token)}</dd>
         <dt>Signs of life</dt><dd class="life life--${life.cls}">${esc(life.label)}</dd>
       </dl>
@@ -152,11 +161,12 @@ async function render(id) {
     const enrichByOwner = {};
     await Promise.all(
       owners.map(async (a) => {
-        const [stats, contract] = await Promise.all([
+        const [stats, contract, ens] = await Promise.all([
           fetchAccountStats(a).catch(() => null),
           isContract(a).catch(() => null),
+          resolveEns(a).catch(() => null),
         ]);
-        enrichByOwner[a] = { stats, isContract: contract };
+        enrichByOwner[a] = { stats, isContract: contract, ens };
       })
     );
     const enrichFor = (t) => (t && t.owner && !isZero(t.owner) ? enrichByOwner[t.owner.toLowerCase()] : null);
