@@ -71,6 +71,54 @@ async function getCode(address) {
   return null;
 }
 
+// Identify a contract: on-chain name()/symbol(), then a Blockscout name/tag
+// fallback. Cheap way to tell what a cluster is (GONDI_MULTI_SOURCE_LOAN,
+// GnosisSafeProxy, Escrow, …) without an explorer key.
+async function ethCall(to, selector) {
+  for (let i = 0; i < RPCS.length; i++) {
+    const url = RPCS[(rpcIdx + i) % RPCS.length];
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [{ to, data: selector }, "latest"] }),
+      });
+      const j = await res.json();
+      if (typeof j?.result === "string") return j.result === "0x" ? null : j.result;
+    } catch {
+      // rotate
+    }
+  }
+  return null;
+}
+function decodeAbiString(hex) {
+  if (!hex) return null;
+  const b = hex.slice(2);
+  try {
+    const len = parseInt(b.slice(64, 128), 16);
+    if (len > 0 && len < 200) return Buffer.from(b.slice(128, 128 + len * 2), "hex").toString("utf8");
+  } catch {}
+  try {
+    const s = Buffer.from(b.slice(0, 64), "hex").toString("utf8").replace(/\0+$/, "");
+    if (/^[\x20-\x7e]{2,}$/.test(s)) return s;
+  } catch {}
+  return null;
+}
+async function identify(addr) {
+  const name = decodeAbiString(await ethCall(addr, "0x06fdde03")); // name()
+  if (name) return name;
+  const symbol = decodeAbiString(await ethCall(addr, "0x95d89b41")); // symbol()
+  if (symbol) return symbol;
+  try {
+    const r = await fetch(`https://eth.blockscout.com/api/v2/addresses/${addr}`);
+    if (r.ok) {
+      const j = await r.json();
+      return j?.name || j?.public_tags?.[0]?.display_name || null;
+    }
+  } catch {}
+  return null;
+}
+
 // Small concurrency pool so we don't hammer the RPC.
 async function mapPool(items, size, fn) {
   const out = new Array(items.length);
@@ -89,9 +137,9 @@ async function mapPool(items, size, fn) {
 async function loadKnown() {
   try {
     const mod = await import(join(__dirname, "..", "js", "known.js"));
-    return { byAddr: mod.KNOWN || {}, byCode: mod.KNOWN_CODE || {} };
+    return { byAddr: mod.KNOWN || {}, byCode: mod.KNOWN_CODE || {}, byName: mod.KNOWN_NAME || [] };
   } catch {
-    return { byAddr: {}, byCode: {} };
+    return { byAddr: {}, byCode: {}, byName: [] };
   }
 }
 
@@ -106,38 +154,49 @@ async function main() {
   console.log("Fetching bytecode for each holder…");
   const codes = await mapPool(owners, 6, (a) => getCode(a));
 
-  const { byAddr, byCode } = await loadKnown();
+  const { byAddr, byCode, byName } = await loadKnown();
   const clusters = new Map(); // codeHash -> { hash, addrs:[{addr,punks}], punks }
 
   owners.forEach((addr, i) => {
     const code = codes[i];
-    if (!code || code === "0x" || code === "0x0") return; // EOA
+    if (!code || code === "0x" || code === "0x0") return; // plain EOA
+    // EIP-7702 (code = 0xef0100||delegate): individual smart-account EOAs, not a
+    // protocol. They cluster by delegate, but each is its own owner.
+    const is7702 = /^0xef0100[0-9a-f]{40}$/i.test(code);
     const hash = createHash("sha256").update(code).digest("hex").slice(0, 16);
-    const c = clusters.get(hash) || { hash, addrs: [], punks: 0 };
+    const c = clusters.get(hash) || { hash, addrs: [], punks: 0, is7702 };
     c.addrs.push({ addr, punks: tally.get(addr) });
     c.punks += tally.get(addr);
     clusters.set(hash, c);
   });
 
   const ranked = [...clusters.values()].sort((a, b) => b.punks - a.punks);
-  console.log(`\nContract holders grouped by bytecode (${ranked.length} distinct code hashes):\n`);
+  console.log(`\nContract holders grouped by bytecode (${ranked.length} distinct code hashes):`);
+  console.log("Identifying each cluster on-chain (name/symbol/explorer)…\n");
   for (const c of ranked.slice(0, 20)) {
-    const label = byCode[c.hash]?.label;
-    const tag = label
-      ? `  ✓ ${label} (labeled by code hash)`
-      : c.addrs.length > 1
-        ? "  (uniform cluster — likely one protocol; identify + add to KNOWN_CODE)"
-        : "";
-    console.log(`code ${c.hash} · ${c.addrs.length} addr · ${c.punks} punks${tag}`);
-    for (const { addr, punks } of c.addrs.sort((a, b) => b.punks - a.punks).slice(0, 6)) {
-      console.log(`    ${addr}  (${punks} punks)${byAddr[addr] ? "  [known: " + byAddr[addr].label + "]" : ""}`);
+    const top = c.addrs.sort((a, b) => b.punks - a.punks);
+    let ident;
+    if (byCode[c.hash]) {
+      ident = `✓ ${byCode[c.hash].label} (labeled by code)`;
+    } else if (c.is7702) {
+      ident = "EIP-7702 smart-account EOAs (individual wallets, not a protocol)";
+    } else {
+      const nm = await identify(top[0].addr);
+      const named = nm && byName.find(({ pattern }) => pattern.test(nm));
+      ident = named
+        ? `✓ ${named.info.label} (matched by name: ${nm})`
+        : nm || (c.addrs.length > 1 ? "?? uniform cluster — identify + add to KNOWN_CODE/NAME" : "??");
+    }
+    console.log(`code ${c.hash} · ${c.addrs.length} addr · ${c.punks} punks · ${ident}`);
+    for (const { addr, punks } of top.slice(0, 4)) {
+      console.log(`    https://evm.now/address/${addr}  (${punks} punks)${byAddr[addr] ? "  [known: " + byAddr[addr].label + "]" : ""}`);
     }
   }
 
-  const unlabeled = ranked.filter((c) => !byCode[c.hash] && c.addrs.length > 1);
+  const unlabeled = ranked.filter((c) => !byCode[c.hash] && !c.is7702 && c.addrs.length > 1);
   console.log(
-    `\n${ranked.filter((c) => byCode[c.hash]).length} cluster(s) already labeled by code hash. ` +
-      `${unlabeled.length} unlabeled multi-address cluster(s) — each is one protocol worth a KNOWN_CODE entry.`
+    `\n${ranked.filter((c) => byCode[c.hash]).length} cluster(s) labeled by code hash. ` +
+      `${unlabeled.length} unlabeled multi-address non-7702 cluster(s) — candidates for a KNOWN_CODE entry.`
   );
 }
 

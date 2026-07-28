@@ -100,8 +100,8 @@ function tokenPanel(kind, id, token, enrich) {
   if (!token) {
     return `<section class="token"><h3>${kind}</h3><p class="token__none">No ${kind} record found for this id.</p></section>`;
   }
-  const { stats, isContract: holderIsContract, codeHash, ens } = enrich || {};
-  const known = knownFor(token.owner, codeHash);
+  const { stats, isContract: holderIsContract, codeHash, contractName, is7702, ens } = enrich || {};
+  const known = knownFor(token.owner, { codeHash, contractName });
   const identityRow = ens
     ? `<dt>Identity</dt><dd>${
         ens.avatar
@@ -115,7 +115,9 @@ function tokenPanel(kind, id, token, enrich) {
     ? ` <span class="tag tag--known">${esc(known.label)}</span>`
     : holderIsContract === true
       ? ` <span class="tag">contract</span>`
-      : "";
+      : is7702
+        ? ` <span class="tag">smart account</span>`
+        : "";
   const holderLink = isZero(token.owner)
     ? esc(holder)
     : `<a href="${S.evmNowAddressBase}${token.owner}" target="_blank" rel="noopener">${esc(holder)}</a>`;
@@ -166,7 +168,14 @@ async function render(id) {
           getCodeInfo(a).catch(() => null),
           resolveEns(a).catch(() => null),
         ]);
-        enrichByOwner[a] = { stats, isContract: codeInfo?.isContract ?? null, codeHash: codeInfo?.codeHash ?? null, ens };
+        enrichByOwner[a] = {
+          stats,
+          isContract: codeInfo?.isContract ?? null,
+          codeHash: codeInfo?.codeHash ?? null,
+          contractName: codeInfo?.contractName ?? null,
+          is7702: codeInfo?.is7702 ?? false,
+          ens,
+        };
       })
     );
     const enrichFor = (t) => (t && t.owner && !isZero(t.owner) ? enrichByOwner[t.owner.toLowerCase()] : null);
