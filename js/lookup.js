@@ -8,7 +8,7 @@ import { fetchPunk, fetchAccountStats, fetchClaim } from "/js/indexer.js";
 import { getCodeInfo } from "/js/rpc.js";
 import { knownFor } from "/js/known.js";
 import { resolveEns } from "/js/ens.js";
-import { resolveOpenSea } from "/js/opensea.js";
+import { resolveProfile } from "/js/identity.js";
 
 const S = window.SITE;
 const $ = (sel) => document.querySelector(sel);
@@ -104,7 +104,27 @@ function custodySteps(token) {
   return [{ kind: "Held wallet", value: ownerLink, tag: "direct" }];
 }
 
-function tokenPanel(kind, token, enrich) {
+// Link-outs scoped to one token — V1 and V2 have different holders, contracts,
+// and marketplace pages, so each panel gets its own row.
+function panelLinks(kind, id, token) {
+  const links = [];
+  if (kind === "V2") {
+    links.push([`${S.cryptopunksDetailsBase}${id}`, "cryptopunks.app"]);
+    links.push([`${S.openseaItemBase}${token.is_wrapped ? S.v2WrappedContract : CONTRACTS.V2}/${id}`, "opensea"]);
+    links.push([`${S.punksMarketBase}${id}`, "punks.market"]);
+  } else {
+    links.push([`${S.v1cryptopunksBase}${id}`, "v1cryptopunks"]);
+    // Unwrapped V1 isn't tradeable on OpenSea; only link it when wrapped.
+    if (token.is_wrapped) links.push([`${S.openseaItemBase}${S.v1WrappedContract}/${id}`, "opensea"]);
+    links.push([`${S.punksMarketBase}${id}`, "punks.market"]);
+  }
+  if (!isZero(token.owner)) links.push([`${S.evmNowAddressBase}${token.owner}`, "evm.now holder"]);
+  return `<nav class="pf-linkouts" aria-label="${kind} — open in">${links
+    .map(([href, label]) => `<a href="${href}" target="_blank" rel="noopener">${esc(label)}<span class="pf-arrow">↗</span></a>`)
+    .join("")}</nav>`;
+}
+
+function tokenPanel(kind, id, token, enrich) {
   const contractLine = `<div class="pf-panel-contract">${short(CONTRACTS[kind])}</div>`;
   if (!token || isZero(token.owner)) {
     return `<article class="pf-panel">
@@ -113,7 +133,7 @@ function tokenPanel(kind, token, enrich) {
     </article>`;
   }
 
-  const { ens, os, isContract, is7702, contractName } = enrich;
+  const { ens, os, ensRecords, isContract, is7702, contractName } = enrich;
   const known = knownFor(token.owner, { codeHash: enrich.codeHash, contractName });
 
   // Evidence accumulator — each ref() appends a source and returns its number.
@@ -136,15 +156,18 @@ function tokenPanel(kind, token, enrich) {
     subs.push(
       `${esc(known.label)}<span class="pf-tag">curated</span>${ref(`Curated label · ${esc(known.label)}${contractName ? ` (${esc(contractName)})` : ""}`)}`
     );
-  if (os) {
-    const x = (os.socials || []).find((s) => /twitter|^x$/i.test(s.platform));
-    const profileUrl = `${S.openseaAccountBase}${token.owner}`;
-    const name = os.username ? esc(os.username) : "profile";
-    const bits = [`<a href="${profileUrl}" target="_blank" rel="noopener">${name}</a>`];
-    if (x)
-      bits.push(`X <a href="https://x.com/${esc(x.username)}" target="_blank" rel="noopener">@${esc(x.username)}</a>`);
+  // X handle from the ENS com.twitter text record (self-published, on-chain).
+  const xHandle = ensRecords?.twitter;
+  if (xHandle)
     subs.push(
-      `${bits.join(" · ")}<span class="pf-tag">OpenSea</span>${ref(`OpenSea profile${os.username ? ` · ${esc(os.username)}` : ""} · opensea.io`)}`
+      `X <a href="https://x.com/${esc(xHandle)}" target="_blank" rel="noopener">@${esc(xHandle)}</a><span class="pf-tag">ENS record</span>${ref(`ENS com.twitter record · @${esc(xHandle)}`)}`
+    );
+  // OpenSea username (links to the profile at opensea.io/{address}, where the
+  // profile page itself surfaces any connected socials).
+  if (os && os.username) {
+    const profileUrl = `${S.openseaAccountBase}${token.owner}`;
+    subs.push(
+      `<a href="${profileUrl}" target="_blank" rel="noopener">${esc(os.username)}</a><span class="pf-tag">OpenSea</span>${ref(`OpenSea profile · ${esc(os.username)} · opensea.io`)}`
     );
   }
   if (!primary) {
@@ -201,6 +224,8 @@ function tokenPanel(kind, token, enrich) {
       <div class="pf-evidence-label">Evidence</div>
       <ol>${evidence}</ol>
     </footer>
+
+    ${panelLinks(kind, id, token)}
   </article>`;
 }
 
@@ -230,28 +255,16 @@ function claimLine(claim) {
   return `<div class="pf-claim">Claimed <strong>${date}</strong>${by}</div>`;
 }
 
-function linkOuts(id, v2Owner) {
-  const links = [
-    [`${S.cryptopunksDetailsBase}${id}`, `cryptopunks.app/${id}`],
-    [`${S.punksMarketBase}${id}`, `punks.market/${id}`],
-    [`${S.openseaItemBase}${CONTRACTS.V2}/${id}`, `opensea/${id}`],
-  ];
-  if (v2Owner && !isZero(v2Owner)) links.push([`${S.evmNowAddressBase}${v2Owner}`, "evm.now/holder"]);
-  return `<nav class="pf-linkouts" aria-label="Open in">${links
-    .map(([href, label]) => `<a href="${href}" target="_blank" rel="noopener">${esc(label)}<span class="pf-arrow">↗</span></a>`)
-    .join("")}</nav>`;
-}
-
 async function enrichOwners(v1, v2) {
   const owners = [...new Set([v1?.owner, v2?.owner].filter((a) => a && !isZero(a)).map((a) => a.toLowerCase()))];
   const by = {};
   await Promise.all(
     owners.map(async (a) => {
-      const [stats, codeInfo, ens, os] = await Promise.all([
+      const [stats, codeInfo, ens, profile] = await Promise.all([
         fetchAccountStats(a).catch(() => null),
         getCodeInfo(a).catch(() => null),
         resolveEns(a).catch(() => null),
-        resolveOpenSea(a).catch(() => null),
+        resolveProfile(a).catch(() => null),
       ]);
       by[a] = {
         stats,
@@ -260,7 +273,8 @@ async function enrichOwners(v1, v2) {
         contractName: codeInfo?.contractName ?? null,
         is7702: codeInfo?.is7702 ?? false,
         ens,
-        os,
+        os: profile?.opensea ?? null,
+        ensRecords: profile?.ens ?? null,
       };
     })
   );
@@ -284,8 +298,7 @@ async function render(id) {
     out.innerHTML =
       caseHead(id, v1, v2) +
       claimLine(claim) +
-      `<section class="pf-panels">${tokenPanel("V2", v2, enrichFor(v2))}${tokenPanel("V1", v1, enrichFor(v1))}</section>` +
-      linkOuts(id, v2?.owner || v1?.owner);
+      `<section class="pf-panels">${tokenPanel("V2", id, v2, enrichFor(v2))}${tokenPanel("V1", id, v1, enrichFor(v1))}</section>`;
     out.scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (err) {
     out.innerHTML = `<p class="pf-note"><strong>Lookup failed.</strong> ${esc(err.message)}</p>`;
