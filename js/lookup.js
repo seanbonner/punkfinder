@@ -4,6 +4,7 @@
 
 import { fetchPunk, fetchAccountStats } from "/js/indexer.js";
 import { isContract } from "/js/rpc.js";
+import { knownFor } from "/js/known.js";
 
 const S = window.SITE;
 const $ = (sel) => document.querySelector(sel);
@@ -12,6 +13,13 @@ const YEAR = 365.25 * 24 * 3600;
 const DORMANT_AFTER = 3 * YEAR; // spec §5: dormant = 3+ years no signed activity
 
 const short = (a) => (a && a.length > 10 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a || "");
+const hostOf = (url) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+};
 const isZero = (a) => !a || a.toLowerCase() === ZERO;
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -31,11 +39,14 @@ function relTime(ts) {
 // full §6 verdict — no identity, market, or vault signals folded in. A contract
 // holder has no meaningful tx-from liveness, so we say so rather than imply it's
 // dormant/lost.
-function liveness(stats, isContractHolder) {
+function liveness(stats, isContractHolder, known) {
+  if (known) {
+    return { cls: "lead", label: `Held by ${esc(known.label)} (${esc(known.category)}) — a lead, not a dead end. See the note below.` };
+  }
   if (isContractHolder) {
     return {
       cls: "contract",
-      label: "Holder is a contract (smart-contract wallet or protocol), not an EOA — plain-transaction activity isn't a reliable liveness signal here. Follow it on Etherscan.",
+      label: "Holder is a contract (smart-contract wallet or protocol), not an EOA — plain-transaction activity isn't a reliable liveness signal here. Follow it on evm.now.",
     };
   }
   if (!stats || stats.lastActiveAt == null) {
@@ -80,7 +91,7 @@ function linkOuts(kind, id, owner) {
     links.push([`${S.v1cryptopunksBase}${id}`, "v1cryptopunks"]);
     links.push([`${S.punksMarketBase}${id}`, "punksmarket"]);
   }
-  if (!isZero(owner)) links.push([`${S.etherscanAddressBase}${owner}`, "holder on Etherscan"]);
+  if (!isZero(owner)) links.push([`${S.evmNowAddressBase}${owner}`, "holder on evm.now"]);
   return links.map(([href, label]) => `<a href="${href}" target="_blank" rel="noopener">${label} →</a>`).join("");
 }
 
@@ -89,20 +100,29 @@ function tokenPanel(kind, id, token, enrich) {
     return `<section class="token"><h3>${kind}</h3><p class="token__none">No ${kind} record found for this id.</p></section>`;
   }
   const { stats, isContract: holderIsContract } = enrich || {};
-  const life = liveness(stats, holderIsContract === true);
+  const known = knownFor(token.owner);
+  const life = liveness(stats, holderIsContract === true, known);
   const holder = short(token.owner);
-  const contractTag = holderIsContract === true ? ` <span class="tag">contract</span>` : "";
+  const tag = known
+    ? ` <span class="tag tag--known">${esc(known.label)}</span>`
+    : holderIsContract === true
+      ? ` <span class="tag">contract</span>`
+      : "";
   const holderLink = isZero(token.owner)
     ? esc(holder)
-    : `<a href="${S.etherscanAddressBase}${token.owner}" target="_blank" rel="noopener">${esc(holder)}</a>`;
+    : `<a href="${S.evmNowAddressBase}${token.owner}" target="_blank" rel="noopener">${esc(holder)}</a>`;
+  const lead = known
+    ? `<p class="token__lead">${esc(known.note)} <a href="${esc(known.url)}" target="_blank" rel="noopener">${esc(hostOf(known.url))} →</a></p>`
+    : "";
   return `
     <section class="token">
       <h3>${kind}</h3>
       <dl class="token__facts">
-        <dt>Holder</dt><dd>${holderLink}${contractTag}</dd>
+        <dt>Holder</dt><dd>${holderLink}${tag}</dd>
         <dt>Custody</dt><dd>${custodyLine(token)}</dd>
         <dt>Signs of life</dt><dd class="life life--${life.cls}">${esc(life.label)}</dd>
       </dl>
+      ${lead}
       <p class="token__links">${linkOuts(kind, id, token.owner)}</p>
     </section>`;
 }

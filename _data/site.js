@@ -7,7 +7,7 @@ export default {
   imageBase: "https://www.cryptopunks.app/api/punks/",
   cryptopunksDetailsBase: "https://cryptopunks.app/cryptopunks/details/",
   cryptopunksAccountBase: "https://cryptopunks.app/cryptopunks/accountinfo?account=",
-  etherscanAddressBase: "https://etherscan.io/address/",
+  evmNowAddressBase: "https://evm.now/address/",
   openseaItemBase: "https://opensea.io/item/ethereum/",
   openseaAccountBase: "https://opensea.io/",
   punksMarketBase: "https://punksmarket.app/punk/",

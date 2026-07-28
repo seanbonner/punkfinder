@@ -99,6 +99,17 @@ main { padding: 1.5rem 1.25rem 3rem; }
 .life--dormant { color: var(--dormant); }
 .life--unknown { color: var(--unknown); }
 .life--contract { color: #8fb8ff; }
+.life--lead { color: var(--accent); }
+
+.token__lead {
+  margin: 0.85rem 0 0;
+  padding: 0.65rem 0.8rem;
+  background: #10261a;
+  border: 1px solid #2f6a45;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
 
 .tag {
   display: inline-block;
@@ -111,6 +122,11 @@ main { padding: 1.5rem 1.25rem 3rem; }
   border-radius: 4px;
   padding: 0.05rem 0.35rem;
   vertical-align: middle;
+}
+.tag--known {
+  color: #08110a;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .token__links { margin: 0.85rem 0 0; display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.85rem; }
