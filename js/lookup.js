@@ -21,6 +21,14 @@ const CONTRACTS = {
   V1: "0x6Ba6f2207e343923BA692e5Cae646Fb0F566DB8D",
   V2: "0xb47e3cd837dDF8e4c57F05d70Ab865de6e193BBB",
 };
+// Every token state has an OpenSea page — pick the contract for its wrap state.
+const WRAPPER_CONTRACTS = {
+  wrapped_punks: "0xb7f7F6C52F2e2fdb1963Eab30438024864c313F6", // WrappedPunks (legacy, V2)
+  cryptopunks_721: "0x000000000000003607fce1aC9E043a86675C5C2F", // CryptoPunks721 (modern, V2)
+  v1_wrapper: "0x282BDD42f4eb70e7A9D9F40c8fEA0825B7f68C5D", // V1 Wrapper
+};
+const openseaContract = (kind, token) =>
+  token.is_wrapped && WRAPPER_CONTRACTS[token.wrapper] ? WRAPPER_CONTRACTS[token.wrapper] : CONTRACTS[kind];
 const WRAPPER_NAMES = {
   wrapped_punks: "WrappedPunks",
   cryptopunks_721: "CryptoPunks721",
@@ -108,15 +116,13 @@ function custodySteps(token) {
 // and marketplace pages, so each panel gets its own row.
 function panelLinks(kind, id, token) {
   const links = [];
+  // OpenSea has a page for every state (native, wrapped, 721) — always link it.
+  const opensea = [`${S.openseaItemBase}${openseaContract(kind, token)}/${id}`, "opensea"];
   if (kind === "V2") {
-    links.push([`${S.cryptopunksDetailsBase}${id}`, "cryptopunks.app"]);
-    links.push([`${S.openseaItemBase}${token.is_wrapped ? S.v2WrappedContract : CONTRACTS.V2}/${id}`, "opensea"]);
-    links.push([`${S.punksMarketBase}${id}`, "punks.market"]);
+    links.push([`${S.cryptopunksDetailsBase}${id}`, "cryptopunks.app"], opensea);
   } else {
-    links.push([`${S.v1cryptopunksBase}${id}`, "v1cryptopunks"]);
-    // Unwrapped V1 isn't tradeable on OpenSea; only link it when wrapped.
-    if (token.is_wrapped) links.push([`${S.openseaItemBase}${S.v1WrappedContract}/${id}`, "opensea"]);
-    links.push([`${S.punksMarketBase}${id}`, "punks.market"]);
+    // punksmarket is V1-only.
+    links.push([`${S.v1cryptopunksBase}${id}`, "v1cryptopunks"], opensea, [`${S.punksMarketBase}${id}`, "punksmarket"]);
   }
   if (!isZero(token.owner)) links.push([`${S.evmNowAddressBase}${token.owner}`, "evm.now holder"]);
   return `<nav class="pf-linkouts" aria-label="${kind} — open in">${links
