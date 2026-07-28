@@ -69,24 +69,34 @@ const evmLink = (addr, text) =>
 // reachability, not good/bad: blue = reachable/recently active, grey = known
 // but quiet, amber = inactive, red = long inactive. `listed` (wine) and the §6
 // verdicts (vault/inst/burned) land with the market + status layers.
-function statusFor({ stats, isContract, ens }, known) {
+function statusFor({ stats, isContract, ens, os }, known) {
   if (known) return { key: "known", label: `Held — ${known.label}` };
-  if (isContract === true) return { key: "known", label: "Held — contract" };
+  const name = ens?.name || os?.username;
+  // A contract we can name (ENS / OpenSea) is a lead, not a dead end.
+  if (isContract === true) {
+    return name ? { key: "reachable", label: `Held — ${name}` } : { key: "known", label: "Held — contract" };
+  }
   const last = stats?.lastActiveAt;
   const age = last != null ? Date.now() / 1000 - last : Infinity;
   const recent = age <= DORMANT_AFTER;
-  if (ens) return { key: recent ? "reachable" : "known", label: recent ? "Reachable" : "Reachable — quiet" };
+  if (ens || os) return { key: recent ? "reachable" : "known", label: recent ? "Reachable" : "Reachable — quiet" };
   if (recent) return { key: "active", label: "Active — anonymous" };
   if (age > 5 * YEAR) return { key: "lost", label: "Long inactive" };
   return { key: "inactive", label: "Inactive" };
 }
 
 // Signs-of-life evidence prose that sits under the status pill.
-function signsProse({ stats, isContract, is7702 }, known) {
+function signsProse({ stats, isContract, is7702, ens, os }, known) {
   if (known && known.category === "lending")
     return `Held by ${esc(known.label)}, a contract — transaction-based liveness doesn't apply here. See the lead below.`;
-  if (isContract === true)
+  if (isContract === true) {
+    const name = ens?.name || os?.username;
+    if (name) {
+      const v = os?.username && os?.verified ? " (verified on OpenSea)" : "";
+      return `Held in the ${esc(name)} account${v} — a smart-contract wallet, so it's reachable through that identity rather than gauged by transactions.`;
+    }
     return "Holder is a contract (smart-contract wallet or protocol), not an EOA — plain-transaction activity isn't a reliable liveness signal. Follow it on evm.now.";
+  }
   const smart = is7702 ? "Smart-account wallet (EIP-7702). " : "";
   const first = yyyymm(stats?.firstSeenAt);
   const when = stats?.lastActiveAt ? relTime(stats.lastActiveAt) : null;

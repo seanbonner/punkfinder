@@ -31,7 +31,9 @@ async function fetchOpenSea(address, env) {
     const socials = Array.isArray(d.social_media_accounts)
       ? d.social_media_accounts.map((s) => ({ platform: s.platform, username: s.username })).filter((s) => s.platform && s.username)
       : [];
-    return d.username || d.website || socials.length ? { username: d.username || null, website: d.website || null, socials } : null;
+    return d.username || d.website || socials.length
+      ? { username: d.username || null, website: d.website || null, verified: !!d.is_verified, socials }
+      : null;
   } catch {
     return null;
   }
