@@ -1,0 +1,14 @@
+{
+  "name": "punkfinder",
+  "version": "0.0.1",
+  "description": "Static site for punkfinder.com — who holds a given CryptoPunk (V1 + V2) and is anyone home.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "eleventy",
+    "serve": "eleventy --serve"
+  },
+  "devDependencies": {
+    "@11ty/eleventy": "^3.0.0"
+  }
+}

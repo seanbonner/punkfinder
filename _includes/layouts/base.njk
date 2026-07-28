@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% if title %}{{ title }} — {{ site.title }}{% else %}{{ site.title }}{% endif %}</title>
+<meta name="description" content="{{ description or site.description }}">
+<link rel="stylesheet" href="/css/style.css?v={{ assetVersion }}">
+<script>
+  window.SITE = {
+    indexerUrl: {{ site.indexerUrl | dump | safe }},
+    imageBase: {{ site.imageBase | dump | safe }},
+    cryptopunksDetailsBase: {{ site.cryptopunksDetailsBase | dump | safe }},
+    cryptopunksAccountBase: {{ site.cryptopunksAccountBase | dump | safe }},
+    etherscanAddressBase: {{ site.etherscanAddressBase | dump | safe }},
+    openseaItemBase: {{ site.openseaItemBase | dump | safe }},
+    openseaAccountBase: {{ site.openseaAccountBase | dump | safe }},
+    punksMarketBase: {{ site.punksMarketBase | dump | safe }},
+    v1cryptopunksBase: {{ site.v1cryptopunksBase | dump | safe }},
+    v1WrappedContract: {{ site.v1WrappedContract | dump | safe }},
+    v1UnwrappedContract: {{ site.v1UnwrappedContract | dump | safe }},
+    v2WrappedContract: {{ site.v2WrappedContract | dump | safe }},
+  };
+</script>
+</head>
+<body class="{{ bodyClass or '' }}">
+<header class="site-header">
+  <a class="site-header__logo" href="/">{{ site.title }}</a>
+</header>
+
+<main>
+{{ content | safe }}
+</main>
+
+<footer class="site-footer">
+  <p>
+    A <a href="https://punkspunkspunks.com">PunksPunksPunks</a> project by <a href="http://seanbonner.com/">Sean Bonner</a>. Public chain data only — see <a href="/about/">how it works</a>.
+  </p>
+</footer>
+</body>
+</html>
