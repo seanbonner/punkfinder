@@ -3,7 +3,7 @@
 // KB labels, ENS/OpenSea identity, and full §6 status verdicts come next.
 
 import { fetchPunk, fetchAccountStats } from "/js/indexer.js";
-import { isContract } from "/js/rpc.js";
+import { getCodeInfo } from "/js/rpc.js";
 import { knownFor } from "/js/known.js";
 import { resolveEns } from "/js/ens.js";
 
@@ -100,8 +100,8 @@ function tokenPanel(kind, id, token, enrich) {
   if (!token) {
     return `<section class="token"><h3>${kind}</h3><p class="token__none">No ${kind} record found for this id.</p></section>`;
   }
-  const { stats, isContract: holderIsContract, ens } = enrich || {};
-  const known = knownFor(token.owner);
+  const { stats, isContract: holderIsContract, codeHash, ens } = enrich || {};
+  const known = knownFor(token.owner, codeHash);
   const identityRow = ens
     ? `<dt>Identity</dt><dd>${
         ens.avatar
@@ -161,12 +161,12 @@ async function render(id) {
     const enrichByOwner = {};
     await Promise.all(
       owners.map(async (a) => {
-        const [stats, contract, ens] = await Promise.all([
+        const [stats, codeInfo, ens] = await Promise.all([
           fetchAccountStats(a).catch(() => null),
-          isContract(a).catch(() => null),
+          getCodeInfo(a).catch(() => null),
           resolveEns(a).catch(() => null),
         ]);
-        enrichByOwner[a] = { stats, isContract: contract, ens };
+        enrichByOwner[a] = { stats, isContract: codeInfo?.isContract ?? null, codeHash: codeInfo?.codeHash ?? null, ens };
       })
     );
     const enrichFor = (t) => (t && t.owner && !isZero(t.owner) ? enrichByOwner[t.owner.toLowerCase()] : null);

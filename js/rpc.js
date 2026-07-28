@@ -1,14 +1,14 @@
 // Minimal read-only Ethereum RPC. Public, keyless, CORS-friendly endpoints —
-// used only for contract detection (eth_getCode) so we can tell a smart-contract
-// holder (a wrapper, vault, Safe, or protocol) apart from a plain EOA. A miss
-// just returns null ("unknown") and never blocks the report.
+// used to fetch a holder's bytecode so we can (a) tell a contract holder from a
+// plain EOA and (b) fingerprint it, since protocol/custody contracts (Gondi et
+// al.) are bytecode clones we label by code hash (see js/known.js). A miss
+// returns nulls ("unknown") and never blocks the report.
 
 // Keyless, CORS-enabled (access-control-allow-origin: *), verified returning
 // real eth_getCode. Tried in order; first usable answer wins.
 const ENDPOINTS = ["https://ethereum-rpc.publicnode.com", "https://eth.drpc.org", "https://1rpc.io/eth"];
 
-// true = has code (contract), false = EOA, null = couldn't determine.
-export async function isContract(address) {
+async function fetchCode(address) {
   for (const url of ENDPOINTS) {
     try {
       const res = await fetch(url, {
@@ -18,11 +18,25 @@ export async function isContract(address) {
       });
       if (!res.ok) continue;
       const json = await res.json();
-      const code = json?.result;
-      if (typeof code === "string") return code !== "0x" && code !== "0x0";
+      if (typeof json?.result === "string") return json.result;
     } catch {
       // try the next endpoint
     }
   }
   return null;
+}
+
+// First 16 hex of SHA-256 over the code string — same recipe as
+// scripts/discover-holders.mjs, so hashes match across tool and site.
+async function codeFingerprint(code) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
+}
+
+// { isContract: true|false|null, codeHash: string|null }
+export async function getCodeInfo(address) {
+  const code = await fetchCode(address);
+  if (code == null) return { isContract: null, codeHash: null };
+  const contract = code !== "0x" && code !== "0x0";
+  return { isContract: contract, codeHash: contract ? await codeFingerprint(code) : null };
 }
