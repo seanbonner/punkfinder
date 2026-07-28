@@ -57,6 +57,22 @@ export async function fetchClaim(id) {
   return it ? { at: Number(it.timestamp), by: it.to } : null;
 }
 
+// When the current holder acquired each token — the most recent ownership event
+// (assign/transfer/sale) per version. A punk sitting still in an active wallet
+// isn't lost; it's held, and this says since when.
+const ACQUIRED_QUERY = `
+  query Acquired($id: BigInt!) {
+    v2: events(where: { punk_id: $id, type_in: ["assign","transfer","sale"], source_in: ["cryptopunks_v2","wrapped_punks","cryptopunks_721"] }, orderBy: "timestamp", orderDirection: "desc", limit: 1) { items { timestamp } }
+    v1: events(where: { punk_id: $id, type_in: ["assign","transfer","sale"], source_in: ["cryptopunks_v1","v1_wrapper"] }, orderBy: "timestamp", orderDirection: "desc", limit: 1) { items { timestamp } }
+  }
+`;
+
+export async function fetchAcquired(id) {
+  const data = await gql(ACQUIRED_QUERY, { id: String(id) });
+  const at = (x) => (x?.items?.[0]?.timestamp ? Number(x.items[0].timestamp) : null);
+  return { v1: at(data.v1), v2: at(data.v2) };
+}
+
 // Whole-wallet liveness. `lastActiveAt` tracks tx-from on the EOA — any signed
 // transaction, not just punk activity (spec §5). The spend/earn aggregates in
 // the same response ARE punk-scoped; we ignore them here.

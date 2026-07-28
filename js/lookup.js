@@ -4,7 +4,8 @@
 // full §6 status verdicts fill in later. Status pill uses the canonical
 // vocabulary keys (reachable/active/dormant/lost/vault/heldna/inst/burned/lead).
 
-import { fetchPunk, fetchAccountStats, fetchClaim } from "/js/indexer.js";
+import { fetchPunk, fetchClaim, fetchAcquired } from "/js/indexer.js";
+import { resolveActivity } from "/js/activity.js";
 import { getCodeInfo } from "/js/rpc.js";
 import { knownFor } from "/js/known.js";
 import { resolveEns } from "/js/ens.js";
@@ -69,14 +70,14 @@ const evmLink = (addr, text) =>
 // reachability, not good/bad: blue = reachable/recently active, grey = known
 // but quiet, amber = inactive, red = long inactive. `listed` (wine) and the §6
 // verdicts (vault/inst/burned) land with the market + status layers.
-function statusFor({ stats, isContract, ens, os }, known) {
+function statusFor({ activity, isContract, ens, os }, known) {
   if (known) return { key: "known", label: `Held — ${known.label}` };
   const name = ens?.name || os?.username;
   // A contract we can name (ENS / OpenSea) is a lead, not a dead end.
   if (isContract === true) {
     return name ? { key: "reachable", label: `Held — ${name}` } : { key: "known", label: "Held — contract" };
   }
-  const last = stats?.lastActiveAt;
+  const last = activity?.lastOutboundAt;
   const age = last != null ? Date.now() / 1000 - last : Infinity;
   const recent = age <= DORMANT_AFTER;
   if (ens || os) return { key: recent ? "reachable" : "known", label: recent ? "Reachable" : "Reachable — quiet" };
@@ -86,7 +87,7 @@ function statusFor({ stats, isContract, ens, os }, known) {
 }
 
 // Signs-of-life evidence prose that sits under the status pill.
-function signsProse({ stats, isContract, is7702, ens, os }, known) {
+function signsProse({ activity, isContract, is7702, ens, os }, known) {
   if (known && known.category === "lending")
     return `Held by ${esc(known.label)}, a contract — transaction-based liveness doesn't apply here. See the lead below.`;
   if (isContract === true) {
@@ -98,11 +99,11 @@ function signsProse({ stats, isContract, is7702, ens, os }, known) {
     return "Holder is a contract (smart-contract wallet or protocol), not an EOA — plain-transaction activity isn't a reliable liveness signal. Follow it on evm.now.";
   }
   const smart = is7702 ? "Smart-account wallet (EIP-7702). " : "";
-  const first = yyyymm(stats?.firstSeenAt);
-  const when = stats?.lastActiveAt ? relTime(stats.lastActiveAt) : null;
-  if (!when) return `${smart}No signed transactions on record${first ? `; wallet first seen ${first}` : ""}.`;
-  const state = Date.now() / 1000 - stats.lastActiveAt > DORMANT_AFTER ? "Dormant" : "Active";
-  return `${smart}${state} — last signed transaction ${when}${first ? `; first seen ${first}` : ""}.`;
+  const last = activity?.lastOutboundAt;
+  const when = last ? relTime(last) : null;
+  if (!when) return `${smart}No outbound transactions signed by this wallet on record.`;
+  const state = Date.now() / 1000 - last > DORMANT_AFTER ? "Dormant" : "Active";
+  return `${smart}${state} — last signed transaction ${when} (whole-wallet, any activity).`;
 }
 
 // Custody chain steps: raw market owner (wrapper/vault) → beneficial holder.
@@ -142,7 +143,7 @@ function panelLinks(kind, id, token) {
     .join("")}</nav>`;
 }
 
-function tokenPanel(kind, id, token, enrich) {
+function tokenPanel(kind, id, token, enrich, acquiredAt) {
   const contractLine = `<div class="pf-panel-contract">${short(CONTRACTS[kind])}</div>`;
   if (!token || isZero(token.owner)) {
     return `<article class="pf-panel">
@@ -158,7 +159,7 @@ function tokenPanel(kind, id, token, enrich) {
   const ev = [];
   const ref = (source) => (ev.push(source), `<sup class="pf-ref">${ev.length}</sup>`);
 
-  const holderRef = ref(`${evmLink(token.owner, `evm.now/address/${short(token.owner)}`)} · ownership + activity via indexer`);
+  const holderRef = ref(`${evmLink(token.owner, `evm.now/address/${short(token.owner)}`)} · ownership via indexer`);
 
   // Identity row — ENS primary; curated label and OpenSea profile as sub-lines,
   // each source-attributed. Refs called in visual (top-to-bottom) order.
@@ -200,7 +201,7 @@ function tokenPanel(kind, id, token, enrich) {
 
   // Status + signs + optional lead
   const st = statusFor(enrich, known);
-  const signsRef = ref("Indexer /accounts/stats · whole-wallet lastActiveAt");
+  const signsRef = ref("Whole-wallet last outbound tx · evm.now / Blockscout");
   const lead = known
     ? `<aside class="pf-lead"><div class="pf-lead-label">Lead · ${esc(known.label)}</div><p>${esc(known.note)} <a href="${esc(known.url)}" target="_blank" rel="noopener">${esc(hostOf(known.url))} ↗</a></p></aside>`
     : "";
@@ -219,7 +220,9 @@ function tokenPanel(kind, id, token, enrich) {
 
     <div class="pf-row">
       <div class="pf-row-label">Holder</div>
-      <div class="pf-row-value">${evmLink(token.owner)}<span class="pf-tag">indexer</span>${holderRef}</div>
+      <div class="pf-row-value">${evmLink(token.owner)}<span class="pf-tag">indexer</span>${holderRef}${
+        acquiredAt ? `<span class="pf-sub">held since ${new Date(acquiredAt * 1000).toISOString().slice(0, 10)}</span>` : ""
+      }</div>
     </div>
     <div class="pf-row">
       <div class="pf-row-label">Identity</div>
@@ -289,14 +292,14 @@ async function enrichOwners(v1, v2) {
   const by = {};
   await Promise.all(
     owners.map(async (a) => {
-      const [stats, codeInfo, ens, profile] = await Promise.all([
-        fetchAccountStats(a).catch(() => null),
+      const [activity, codeInfo, ens, profile] = await Promise.all([
+        resolveActivity(a).catch(() => null),
         getCodeInfo(a).catch(() => null),
         resolveEns(a).catch(() => null),
         resolveProfile(a).catch(() => null),
       ]);
       by[a] = {
-        stats,
+        activity,
         isContract: codeInfo?.isContract ?? null,
         codeHash: codeInfo?.codeHash ?? null,
         contractName: codeInfo?.contractName ?? null,
@@ -323,16 +326,17 @@ async function render(id) {
       out.innerHTML = `<p class="pf-note"><strong>Case #${id} · not found.</strong> No V1 or V2 record for this id. Try another punk number, 0–9999.</p>`;
       return;
     }
-    const [enrichFor, claim, traits, imgSrc] = await Promise.all([
+    const [enrichFor, claim, traits, imgSrc, acquired] = await Promise.all([
       enrichOwners(v1, v2),
       fetchClaim(id).catch(() => null),
       getTraits(id).catch(() => null),
       renderPunkDataUri(id).catch(() => null),
+      fetchAcquired(id).catch(() => null),
     ]);
     out.innerHTML =
       caseHead(id, v1, v2, traits, imgSrc) +
       claimLine(claim) +
-      `<section class="pf-panels">${tokenPanel("V2", id, v2, enrichFor(v2))}${tokenPanel("V1", id, v1, enrichFor(v1))}</section>`;
+      `<section class="pf-panels">${tokenPanel("V2", id, v2, enrichFor(v2), acquired?.v2)}${tokenPanel("V1", id, v1, enrichFor(v1), acquired?.v1)}</section>`;
     out.scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (err) {
     out.innerHTML = `<p class="pf-note"><strong>Lookup failed.</strong> ${esc(err.message)}</p>`;
