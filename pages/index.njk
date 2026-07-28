@@ -4,17 +4,12 @@ permalink: /
 title: Find a punk
 ---
 
-<div class="page-wrap">
-  <h1>Who holds this punk?</h1>
-  <p class="page-wrap__intro">Enter a punk number (0–9999). PunkFinder reports both the V1 and V2 tokens — who holds each, whether the wallet shows signs of life, and how it's custodied. Live from the chain.</p>
+<form class="pf-console" id="lookup-form" role="search" autocomplete="off">
+  <label class="pf-console-label" for="pf-input">Lookup</label>
+  <input id="pf-input" type="text" inputmode="numeric" placeholder="Punk number (0–9999)…" required>
+  <button type="submit">Run</button>
+</form>
 
-  <form id="lookup-form" autocomplete="off">
-    <label for="lookup-id">Punk number</label>
-    <input type="number" id="lookup-id" min="0" max="9999" required placeholder="e.g. 1234">
-    <button type="submit">Find</button>
-  </form>
-
-  <div id="lookup-result" hidden></div>
-</div>
+<div id="pf-results"></div>
 
 <script src="/js/lookup.js?v={{ assetVersion }}" type="module"></script>

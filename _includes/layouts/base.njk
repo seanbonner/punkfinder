@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% if title %}{{ title }} — {{ site.title }}{% else %}{{ site.title }}{% endif %}</title>
 <meta name="description" content="{{ description or site.description }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css?v={{ assetVersion }}">
 <script>
   window.SITE = {
@@ -23,19 +26,39 @@
   };
 </script>
 </head>
-<body class="{{ bodyClass or '' }}">
-<header class="site-header">
-  <a class="site-header__logo" href="/">{{ site.title }}</a>
-</header>
+<body>
+<main class="pf-page">
 
-<main>
-{{ content | safe }}
+  <header class="pf-masthead">
+    <div>
+      <a class="pf-brand" href="/" aria-label="{{ site.title }} home">PUNKFINDER<span class="dot">.</span></a>
+      <div class="pf-brand-sub">Field intelligence · Provenance &amp; reachability</div>
+    </div>
+    <div class="pf-masthead-meta">
+      CASE OPENED <span id="pf-opened">—</span><br>
+      LIVE CHAIN DATA · PUBLIC SOURCES ONLY
+    </div>
+  </header>
+
+  {{ content | safe }}
+
+  <footer class="pf-family-footer">
+    <span>A <a href="https://punkspunkspunks.com">PunksPunksPunks</a> project</span>
+    <div class="pf-family-links">
+      <a href="https://punkspunkspunks.com">Hub</a>
+      <a href="/about/">How it works</a>
+    </div>
+  </footer>
+
 </main>
-
-<footer class="site-footer">
-  <p>
-    A <a href="https://punkspunkspunks.com">PunksPunksPunks</a> project by <a href="http://seanbonner.com/">Sean Bonner</a>. Public chain data only — see <a href="/about/">how it works</a>.
-  </p>
-</footer>
+<script>
+  (function () {
+    var el = document.getElementById("pf-opened");
+    if (el) {
+      var d = new Date();
+      el.textContent = d.toISOString().slice(0, 16).replace("T", " ") + " UTC";
+    }
+  })();
+</script>
 </body>
 </html>

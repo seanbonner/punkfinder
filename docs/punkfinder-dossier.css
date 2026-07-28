@@ -522,25 +522,3 @@
   .pf-status { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .pf-lead   { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
-
-/* --------------------------------------------------------------------------
-   PunkFinder-specific additions (real punk image, ENS avatar, states)
-   -------------------------------------------------------------------------- */
-img.pf-punk-img { object-fit: cover; }
-.pf-ens-avatar {
-  width: 16px;
-  height: 16px;
-  vertical-align: -3px;
-  margin-right: 5px;
-  border: 1px solid var(--pf-hair);
-}
-.pf-loading,
-.pf-note {
-  font-family: var(--pf-font-mono);
-  font-size: 13px;
-  color: var(--pf-meta);
-  padding: 24px 0;
-}
-/* Not-found / error is a null result, not a fail — no red (spec §Behaviour). */
-.pf-note strong { color: var(--pf-ink); font-weight: 500; }
-
