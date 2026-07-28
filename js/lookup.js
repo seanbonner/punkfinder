@@ -3,6 +3,7 @@
 // KB labels, ENS/OpenSea identity, and full §6 status verdicts come next.
 
 import { fetchPunk, fetchAccountStats } from "/js/indexer.js";
+import { isContract } from "/js/rpc.js";
 
 const S = window.SITE;
 const $ = (sel) => document.querySelector(sel);
@@ -27,8 +28,16 @@ function relTime(ts) {
 }
 
 // First-pass liveness from whole-wallet lastActiveAt (spec §5). Not yet the
-// full §6 verdict — no identity, market, or vault signals folded in.
-function liveness(stats) {
+// full §6 verdict — no identity, market, or vault signals folded in. A contract
+// holder has no meaningful tx-from liveness, so we say so rather than imply it's
+// dormant/lost.
+function liveness(stats, isContractHolder) {
+  if (isContractHolder) {
+    return {
+      cls: "contract",
+      label: "Holder is a contract (smart-contract wallet or protocol), not an EOA — plain-transaction activity isn't a reliable liveness signal here. Follow it on Etherscan.",
+    };
+  }
   if (!stats || stats.lastActiveAt == null) {
     return { cls: "unknown", label: "No signed activity on record" };
   }
@@ -39,13 +48,27 @@ function liveness(stats) {
     : { cls: "active", label: `Active — last signed tx ${when}` };
 }
 
-function custody(token) {
-  if (!token || isZero(token.owner)) return { label: "No holder on record", native: null };
-  if (token.is_wrapped) return { label: `Wrapped (${esc(token.wrapper || "wrapper")})`, native: token.native_owner };
-  if (token.native_owner && token.owner.toLowerCase() !== token.native_owner.toLowerCase()) {
-    return { label: "Custodied (vault/stash)", native: token.native_owner };
+const WRAPPER_NAMES = {
+  wrapped_punks: "WrappedPunks",
+  cryptopunks_721: "CryptoPunks721",
+  v1_wrapper: "V1 Wrapper",
+};
+
+// Describe custody as an explicit chain so a wrapper/vault contract is never
+// mistaken for the holder. The panel's "Holder" is always the beneficial
+// address (indexer `owner`, already pierced past the wrapper); this line
+// explains how it's held and names the mechanism contract separately.
+function custodyLine(token) {
+  if (!token || isZero(token.owner)) return "No holder on record.";
+  const native = token.native_owner ? short(token.native_owner) : "";
+  if (token.is_wrapped) {
+    const name = WRAPPER_NAMES[token.wrapper] || token.wrapper || "a wrapper";
+    return `Wrapped. The raw CryptoPunk is locked in the ${esc(name)} contract (${esc(native)}); the wrapped token is held by the address above — that's who to look at.`;
   }
-  return { label: "Held directly", native: null };
+  if (token.native_owner && token.owner.toLowerCase() !== token.native_owner.toLowerCase()) {
+    return `Held via a vault/stash contract (${esc(native)}); the beneficial owner is the address above.`;
+  }
+  return "Held directly — no wrapper, vault, or stash in between.";
 }
 
 function linkOuts(kind, id, owner) {
@@ -61,13 +84,14 @@ function linkOuts(kind, id, owner) {
   return links.map(([href, label]) => `<a href="${href}" target="_blank" rel="noopener">${label} →</a>`).join("");
 }
 
-function tokenPanel(kind, id, token, stats) {
+function tokenPanel(kind, id, token, enrich) {
   if (!token) {
     return `<section class="token"><h3>${kind}</h3><p class="token__none">No ${kind} record found for this id.</p></section>`;
   }
-  const c = custody(token);
-  const life = liveness(stats);
+  const { stats, isContract: holderIsContract } = enrich || {};
+  const life = liveness(stats, holderIsContract === true);
   const holder = short(token.owner);
+  const contractTag = holderIsContract === true ? ` <span class="tag">contract</span>` : "";
   const holderLink = isZero(token.owner)
     ? esc(holder)
     : `<a href="${S.etherscanAddressBase}${token.owner}" target="_blank" rel="noopener">${esc(holder)}</a>`;
@@ -75,8 +99,8 @@ function tokenPanel(kind, id, token, stats) {
     <section class="token">
       <h3>${kind}</h3>
       <dl class="token__facts">
-        <dt>Holder</dt><dd>${holderLink}</dd>
-        <dt>Custody</dt><dd>${c.label}${c.native ? ` <span class="muted">· native ${esc(short(c.native))}</span>` : ""}</dd>
+        <dt>Holder</dt><dd>${holderLink}${contractTag}</dd>
+        <dt>Custody</dt><dd>${custodyLine(token)}</dd>
         <dt>Signs of life</dt><dd class="life life--${life.cls}">${esc(life.label)}</dd>
       </dl>
       <p class="token__links">${linkOuts(kind, id, token.owner)}</p>
@@ -102,19 +126,20 @@ async function render(id) {
   try {
     const { v1, v2 } = await fetchPunk(id);
 
-    // One stats fetch per distinct beneficial owner (liveness is whole-wallet).
+    // Per distinct beneficial owner: whole-wallet liveness + whether it's a
+    // contract (so a smart-contract holder isn't read as a dormant EOA).
     const owners = [...new Set([v1?.owner, v2?.owner].filter((a) => a && !isZero(a)).map((a) => a.toLowerCase()))];
-    const statsByOwner = {};
+    const enrichByOwner = {};
     await Promise.all(
       owners.map(async (a) => {
-        try {
-          statsByOwner[a] = await fetchAccountStats(a);
-        } catch {
-          statsByOwner[a] = null;
-        }
+        const [stats, contract] = await Promise.all([
+          fetchAccountStats(a).catch(() => null),
+          isContract(a).catch(() => null),
+        ]);
+        enrichByOwner[a] = { stats, isContract: contract };
       })
     );
-    const statsFor = (t) => (t && t.owner && !isZero(t.owner) ? statsByOwner[t.owner.toLowerCase()] : null);
+    const enrichFor = (t) => (t && t.owner && !isZero(t.owner) ? enrichByOwner[t.owner.toLowerCase()] : null);
 
     out.innerHTML = `
       <article class="result">
@@ -126,8 +151,8 @@ async function render(id) {
           </div>
         </header>
         <div class="result__tokens">
-          ${tokenPanel("V2", id, v2, statsFor(v2))}
-          ${tokenPanel("V1", id, v1, statsFor(v1))}
+          ${tokenPanel("V2", id, v2, enrichFor(v2))}
+          ${tokenPanel("V1", id, v1, enrichFor(v1))}
         </div>
         <p class="result__note">First-pass report — ownership and liveness are live from the indexer. Identity (ENS/OpenSea), market listings, and full status verdicts are coming.</p>
       </article>`;
