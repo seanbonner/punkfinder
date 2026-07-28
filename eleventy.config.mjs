@@ -6,6 +6,9 @@ export default function (eleventyConfig) {
   eleventyConfig.ignores.add("docs/**");
   eleventyConfig.ignores.add("*-spec.md");
   eleventyConfig.ignores.add("README.md");
+  // Cloudflare Pages Functions live in functions/ and are handled by Pages,
+  // not Eleventy — don't let Eleventy pick up the .js files as templates.
+  eleventyConfig.ignores.add("functions/**");
 
   eleventyConfig.addFilter("shortWallet", (wallet) => {
     if (!wallet || typeof wallet !== "string") return "";

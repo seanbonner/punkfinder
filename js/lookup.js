@@ -8,6 +8,7 @@ import { fetchPunk, fetchAccountStats, fetchClaim } from "/js/indexer.js";
 import { getCodeInfo } from "/js/rpc.js";
 import { knownFor } from "/js/known.js";
 import { resolveEns } from "/js/ens.js";
+import { resolveOpenSea } from "/js/opensea.js";
 
 const S = window.SITE;
 const $ = (sel) => document.querySelector(sel);
@@ -112,7 +113,7 @@ function tokenPanel(kind, token, enrich) {
     </article>`;
   }
 
-  const { ens, isContract, is7702, contractName } = enrich;
+  const { ens, os, isContract, is7702, contractName } = enrich;
   const known = knownFor(token.owner, { codeHash: enrich.codeHash, contractName });
 
   // Evidence accumulator — each ref() appends a source and returns its number.
@@ -121,22 +122,40 @@ function tokenPanel(kind, token, enrich) {
 
   const holderRef = ref(`${evmLink(token.owner, `evm.now/address/${short(token.owner)}`)} · ownership + activity via indexer`);
 
-  // Identity row
-  let identity;
+  // Identity row — ENS primary; curated label and OpenSea profile as sub-lines,
+  // each source-attributed. Refs called in visual (top-to-bottom) order.
+  let primary;
   if (ens) {
     const av = ens.avatar
       ? `<img class="pf-ens-avatar" src="${esc(ens.avatar)}" alt="" width="16" height="16" onerror="this.style.display='none'">`
       : "";
-    const ensRef = ref(`ENS reverse record · ${esc(ens.name)}`);
-    identity = `${av}${esc(ens.name)}<span class="pf-tag">ENS</span>${ensRef}`;
-    if (known) identity += `<span class="pf-sub">${esc(known.label)}<span class="pf-tag">curated</span></span>`;
-  } else if (known) {
-    const kRef = ref(`Curated label · ${esc(known.label)}${contractName ? ` (${esc(contractName)})` : ""}`);
-    identity = `${esc(known.label)}<span class="pf-tag">curated</span>${kRef}<span class="pf-sub">No ENS on this address.</span>`;
-  } else {
-    const note = isContract ? "contract, no ENS" : is7702 ? "smart account, no ENS" : "no ENS, no curated label";
-    identity = `— ${note}<span class="pf-tag">on-chain</span>`;
+    primary = `${av}${esc(ens.name)}<span class="pf-tag">ENS</span>${ref(`ENS reverse record · ${esc(ens.name)}`)}`;
   }
+  const subs = [];
+  if (known)
+    subs.push(
+      `${esc(known.label)}<span class="pf-tag">curated</span>${ref(`Curated label · ${esc(known.label)}${contractName ? ` (${esc(contractName)})` : ""}`)}`
+    );
+  if (os) {
+    const x = (os.socials || []).find((s) => /twitter|^x$/i.test(s.platform));
+    const profileUrl = `${S.openseaAccountBase}${token.owner}`;
+    const name = os.username ? esc(os.username) : "profile";
+    const bits = [`<a href="${profileUrl}" target="_blank" rel="noopener">${name}</a>`];
+    if (x)
+      bits.push(`X <a href="https://x.com/${esc(x.username)}" target="_blank" rel="noopener">@${esc(x.username)}</a>`);
+    subs.push(
+      `${bits.join(" · ")}<span class="pf-tag">OpenSea</span>${ref(`OpenSea profile${os.username ? ` · ${esc(os.username)}` : ""} · opensea.io`)}`
+    );
+  }
+  if (!primary) {
+    if (subs.length) {
+      primary = `— no ENS<span class="pf-tag">on-chain</span>`;
+    } else {
+      const note = isContract ? "contract, no ENS" : is7702 ? "smart account, no ENS" : "no ENS, no curated label";
+      primary = `— ${note}<span class="pf-tag">on-chain</span>`;
+    }
+  }
+  const identity = primary + subs.map((s) => `<span class="pf-sub">${s}</span>`).join("");
 
   // Status + signs + optional lead
   const st = statusFor(enrich, known);
@@ -228,10 +247,11 @@ async function enrichOwners(v1, v2) {
   const by = {};
   await Promise.all(
     owners.map(async (a) => {
-      const [stats, codeInfo, ens] = await Promise.all([
+      const [stats, codeInfo, ens, os] = await Promise.all([
         fetchAccountStats(a).catch(() => null),
         getCodeInfo(a).catch(() => null),
         resolveEns(a).catch(() => null),
+        resolveOpenSea(a).catch(() => null),
       ]);
       by[a] = {
         stats,
@@ -240,6 +260,7 @@ async function enrichOwners(v1, v2) {
         contractName: codeInfo?.contractName ?? null,
         is7702: codeInfo?.is7702 ?? false,
         ens,
+        os,
       };
     })
   );
