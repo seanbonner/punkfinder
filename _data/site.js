@@ -14,6 +14,7 @@ export default {
   punksAuctionBase: "https://punks.auction/punks/",
   cryptopunksEthBase: "https://cryptopunks.eth.limo/details/",
   v1cryptopunksBase: "https://v1cryptopunks.com/details/",
+  v1cryptopunksUserBase: "https://v1cryptopunks.com/user/",
   // Canonical contracts (see build spec §2).
   v1UnwrappedContract: "0x6Ba6f2207e343923BA692e5Cae646Fb0F566DB8D",
   v1WrappedContract: "0x282BDD42f4eb70e7A9D9F40c8fEA0825B7f68C5D",

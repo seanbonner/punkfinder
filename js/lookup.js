@@ -179,15 +179,23 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
     const mus = curated?.museum?.[id]; // some burns are on display at a museum
     const musBase = curated?.museumBase || "https://museumpunks.com/";
     const intent = (burnedInfo.intent || "").trim();
-    const detail =
-      `${intent ? intent[0].toUpperCase() + intent.slice(1) + " burn" : "Burned"}${burnedInfo.by ? ` by ${esc(burnedInfo.by)}` : ""}.` +
-      (mus ? ` On display at ${esc(mus.name)}.` : "");
-    const evItems = [`<li><a href="${esc(base + id)}" target="_blank" rel="noopener">burnedpunks.com/${esc(id)} · burn record</a></li>`];
+    const burnLine = `${intent ? intent[0].toUpperCase() + intent.slice(1) + " burn" : "Burned"}${burnedInfo.by ? ` by ${esc(burnedInfo.by)}` : ""}.`;
+    const museumLine = mus ? `<p class="pf-signs">On display at ${esc(mus.name)}.</p>` : "";
+    const holder = token?.owner;
+    const holderRow = holder
+      ? `<div class="pf-row"><div class="pf-row-label">Holder</div><div class="pf-row-value">${evmLink(holder)}</div></div>`
+      : "";
+    const evItems = [];
+    if (holder)
+      evItems.push(`<li><a href="${S.evmNowAddressBase}${holder}" target="_blank" rel="noopener">evm.now/address/${short(holder)} · holder</a></li>`);
+    evItems.push(`<li><a href="${esc(base + id)}" target="_blank" rel="noopener">burnedpunks.com/${esc(id)} · burn record</a></li>`);
     if (mus) evItems.push(`<li><a href="${esc(musBase + id)}" target="_blank" rel="noopener">museumpunks.com/${esc(id)} · museum record</a></li>`);
     return wrap(`
+      ${holderRow}
       <div class="pf-row"><div class="pf-row-label">Status</div><div class="pf-row-value">
         <div class="pf-status-block"><span class="pf-status pf-status--burned">Burned</span></div>
-        <p class="pf-signs">${detail}</p>
+        <p class="pf-signs">${burnLine}</p>
+        ${museumLine}
       </div></div>
       <footer class="pf-evidence"><div class="pf-evidence-label">Evidence</div>
         <ol>${evItems.join("")}</ol>
@@ -289,12 +297,13 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
       ? `<div class="pf-row"><div class="pf-row-label">Custody</div><div class="pf-row-value"><ol class="pf-custody">${custody}</ol></div></div>`
       : "";
 
-  // "also holds N CryptoPunks" — links to the wallet's cryptopunks.app account
-  // page (their punks + activity). Shown when they hold more than this one.
-  const holdings = enrich.holdings || 0;
+  // "also holds N more CryptoPunks" — counted for THIS version, linked to the
+  // matching marketplace (cryptopunks.app account for V2, v1cryptopunks for V1).
+  const count = kind === "V2" ? enrich.holdings?.v2 ?? 0 : enrich.holdings?.v1 ?? 0;
+  const acctUrl = kind === "V2" ? `${S.cryptopunksAccountBase}${token.owner}` : `${S.v1cryptopunksUserBase}${token.owner}`;
   const holdingsSub =
-    holdings > 1
-      ? `<span class="pf-sub">also holds <a href="${S.cryptopunksAccountBase}${token.owner}" target="_blank" rel="noopener">${holdings - 1} more CryptoPunk${holdings - 1 === 1 ? "" : "s"}</a></span>`
+    count > 1
+      ? `<span class="pf-sub">holds <a href="${acctUrl}" target="_blank" rel="noopener">${count} ${kind} CryptoPunks</a> in total</span>`
       : "";
   const heldSinceSub = acquiredAt
     ? `<span class="pf-sub">held since ${new Date(acquiredAt * 1000).toISOString().slice(0, 10)}</span>`
@@ -339,15 +348,17 @@ function caseHead(id, v1, v2, traits) {
   // address — that's burned, not "missing").
   const hasV1 = !!v1;
   const hasV2 = !!v2;
+  const paired = hasV1 && hasV2 && !isZero(v1.owner) && !isZero(v2.owner) && v1.owner.toLowerCase() === v2.owner.toLowerCase();
   let custody = "—";
   if (hasV1 && hasV2) {
-    const paired = !isZero(v1.owner) && !isZero(v2.owner) && v1.owner.toLowerCase() === v2.owner.toLowerCase();
-    custody = paired ? "SAME CUSTODY (paired)" : "SPLIT CUSTODY";
+    custody = paired ? "SAME CUSTODY" : "SPLIT CUSTODY";
   } else if (hasV2) {
     custody = "V2 ONLY";
   } else if (hasV1) {
     custody = "V1 ONLY";
   }
+  // A pink heart between V1 and V2 when the same wallet holds both.
+  const amp = paired ? "💗" : "&amp;";
   const inRange = /^\d{1,4}$/.test(String(id)) && Number(id) <= 9999;
   const disp = esc(displayId(id));
   const eyebrow = traits ? `Case #${disp} · ${esc(traits.t)}` : `Case #${disp} · CryptoPunk`;
@@ -367,7 +378,7 @@ function caseHead(id, v1, v2, traits) {
       ${attrs}
     </div>
     <div class="pf-case-meta">
-      V1 &amp; V2 <strong>${custody}</strong><br>
+      V1 ${amp} V2 <strong>${custody}</strong><br>
       Last checked <strong>${today()}</strong><br>
       Source <strong>LIVE INDEXER</strong>
     </div>

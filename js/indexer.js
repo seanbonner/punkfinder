@@ -82,9 +82,11 @@ const HOLDINGS_QUERY = `
   }
 `;
 
+// Counts are on the beneficial `owner`, so wrapped/vaulted/stashed punks are
+// already included on the correct side (V1 vs V2).
 export async function fetchHoldings(address) {
   const data = await gql(HOLDINGS_QUERY, { addr: address.toLowerCase() });
-  return (data.punks?.totalCount ?? 0) + (data.v1Punks?.totalCount ?? 0);
+  return { v2: data.punks?.totalCount ?? 0, v1: data.v1Punks?.totalCount ?? 0 };
 }
 
 // Whole-wallet liveness. `lastActiveAt` tracks tx-from on the EOA — any signed
