@@ -1,0 +1,58 @@
+---
+layout: layouts/base.njk
+permalink: /about/
+title: How it works
+---
+
+<section class="pf-doc">
+  <div class="pf-doc__eyebrow">Field manual</div>
+  <h1>How PunkFinder works</h1>
+  <p class="pf-doc__lede">PunkFinder answers one question about any CryptoPunk: who holds it — V1 and V2 — and is anyone home. Everything is read live from public chain data and self-published identity. No monthly snapshots, no guesses.</p>
+
+  <h2>Reading a report</h2>
+  <p>Enter a punk number and you get two panels, V1 and V2. They share the same number but are independent tokens, often held by different people, so PunkFinder always reports both and never merges them. Each panel has:</p>
+  <dl class="pf-def">
+    <dt>Holder</dt>
+    <dd>The wallet that actually controls the token — pierced past any wrapper, vault, or stash to the beneficial owner. <strong>Held since</strong> is when that wallet acquired it.</dd>
+    <dt>Identity</dt>
+    <dd>Who the wallet is, if they've said so: an ENS name, a curated label, or an OpenSea profile — with an X handle when it's set in their ENS record. If nothing is published, it simply reads "no known on-chain identity."</dd>
+    <dt>Custody</dt>
+    <dd>The chain of custody as explicit steps — e.g. the raw punk locked in a wrapper contract, held by the address above. A contract such as a lending protocol or a multisig is named, not left as a dead end.</dd>
+    <dt>Signs of life</dt>
+    <dd>Whether the owner is active — from their most recent signed transaction of <em>any</em> kind, across the whole wallet, not just punk moves. A punk sitting still in a busy wallet is being held, not lost. Incoming transfers don't count; only the owner signing does.</dd>
+    <dt>Evidence</dt>
+    <dd>Every claim is a link to its source — the holder on evm.now, the ENS record, the OpenSea profile, the activity log — so you can verify any of it yourself.</dd>
+  </dl>
+
+  <h2>Status at a glance</h2>
+  <p>The status marker is colored by reachability and activity, not good versus bad:</p>
+  <div class="pf-legend">
+    <div><span class="pf-status pf-status--reachable">Reachable</span><span>An identity is attached (ENS, curated label, or OpenSea) — there's a way to reach the owner.</span></div>
+    <div><span class="pf-status pf-status--active">Active — anonymous</span><span>Recently signed a transaction, but no published identity.</span></div>
+    <div><span class="pf-status pf-status--known">Held — YugaLabs</span><span>Held by a named contract — a lending protocol, an institutional vault, a Safe multisig.</span></div>
+    <div><span class="pf-status pf-status--inactive">Inactive</span><span>No signed activity for a while.</span></div>
+    <div><span class="pf-status pf-status--lost">Long inactive</span><span>Years without a signed transaction — possibly lost.</span></div>
+  </div>
+  <p>When a punk is held somewhere it might actually be bought — for example as collateral in a <a href="https://www.gondi.xyz/">Gondi</a> loan — the panel adds a <strong>Lead</strong> callout pointing to the next step.</p>
+
+  <h2>Original claim</h2>
+  <p>Above the panels, the report notes when the punk was first claimed on the V1 contract back in 2017, and by whom — the deepest provenance point on chain.</p>
+
+  <h2>What PunkFinder never shows</h2>
+  <p>Only self-published or on-chain-derivable identity: ENS names and their text records, OpenSea usernames, curated labels for known entities, and chain events. Never emails or physical contact information — those aren't even fetched — and never a guess about who an anonymous wallet "really" is. If someone hasn't published it themselves, PunkFinder doesn't show it.</p>
+
+  <h2>Where the data comes from</h2>
+  <dl class="pf-def">
+    <dt>Ownership</dt>
+    <dd>The live <a href="https://punksmarket.app">punks indexer</a> — current holders, custody, events, and original claims. Always live, never a stale snapshot.</dd>
+    <dt>Activity</dt>
+    <dd>The wallet's most recent signed transaction, from a whole-chain source (evm.now / Blockscout).</dd>
+    <dt>Identity</dt>
+    <dd>ENS (name, avatar, and text records) and OpenSea profiles, resolved server-side so keys stay private.</dd>
+    <dt>Traits</dt>
+    <dd>Type and accessories from the on-chain CryptoPunks data, via the Networked Art punks SDK.</dd>
+  </dl>
+
+  <h2>Still coming</h2>
+  <p>Market listings and a for-sale status, fuller status verdicts, wallet-address lookup, and labels for more custody and lending protocols.</p>
+</section>
