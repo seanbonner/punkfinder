@@ -563,24 +563,35 @@ img.pf-punk-img { object-fit: cover; }
 }
 .pf-none { color: var(--pf-meta); }
 
-/* Centered landing (empty home) — the search sits in the middle of the
-   viewport at ~half width, with space around it. Leaves as soon as a lookup
-   runs (the pf-home class is removed). */
+/* Centered landing (empty home) — the whole thing (brand, search, footer) is
+   one group centered in the viewport at ~half width, not pinned to the corners.
+   Leaves as soon as a lookup runs (the pf-home class is removed). */
 body.pf-home .pf-page {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-}
-body.pf-home .pf-stage {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
   justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 28px;
 }
-body.pf-home .pf-console {
-  max-width: 560px;
-  width: 100%;
-  margin: 0 auto;
+body.pf-home .pf-masthead {
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border-bottom: none;
+}
+body.pf-home .pf-masthead-meta { text-align: center; }
+body.pf-home .pf-stage { width: 100%; max-width: 560px; }
+body.pf-home .pf-console { width: 100%; margin: 0; }
+body.pf-home .pf-family-footer {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0;
+  border-top: none;
 }
 
 /* Mobile: keep the masthead from overflowing the viewport (it was cutting off

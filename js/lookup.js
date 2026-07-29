@@ -154,12 +154,21 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists) {
   const contractLine = `<div class="pf-panel-contract">${short(CONTRACTS[kind])}</div>`;
   if (!token || isZero(token.owner)) {
     const other = kind === "V1" ? "V2" : "V1";
-    const msg = otherExists
-      ? `This CryptoPunk exists only on the ${other} contract — there is no ${kind} token.`
-      : `No ${kind} record on file for this id.`;
+    let body;
+    if (otherExists && kind === "V1") {
+      // A V2-only punk (1416 / 1838 / 1841) — tell the V1/V2 story and point to
+      // its mirror image, the three V1-only curios (all still actively held).
+      body =
+        `<p class="pf-signs"><strong>Exists only on V2.</strong> This CryptoPunk was airdropped on the canonical V2 contract but never claimed on the original, buggy June 2017 V1 contract — so it has no V1 token. Only three ids did this: 1416, 1838, and 1841.</p>` +
+        `<p class="pf-signs">The mirror also exists — three tokens live only on that original V1 contract: #76623, #9845944, and the max-integer punk (2<sup>256</sup>−1), minted by the same bug and all still held in active wallets today.</p>`;
+    } else if (otherExists) {
+      body = `<p class="pf-signs">This CryptoPunk exists only on the ${other} contract — there is no ${kind} token.</p>`;
+    } else {
+      body = `<p class="pf-signs">No ${kind} record on file for this id.</p>`;
+    }
     return `<article class="pf-panel">
       <header class="pf-panel-head"><h2 class="pf-panel-label">${kind} Token</h2>${contractLine}</header>
-      <p class="pf-signs">${msg}</p>
+      ${body}
     </article>`;
   }
 
