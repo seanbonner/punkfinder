@@ -77,8 +77,11 @@ const evmLink = (addr, text) =>
 // reachability, not good/bad: blue = reachable/recently active, grey = known
 // but quiet, amber = inactive, red = long inactive. `listed` (wine) and the §6
 // verdicts (vault/inst/burned) land with the market + status layers.
-function statusFor({ activity, isContract, ens, os }, known, museum) {
+function statusFor({ activity, isContract, ens, os }, known, museum, vault) {
   if (museum) return { key: "inst", label: `Held — ${museum.name}` };
+  // A known vault overrides the activity tiers below — these wallets are built
+  // to sit still, so dormancy here is deliberate custody, not a lost punk.
+  if (vault) return { key: "vault", label: `Held — ${vault.label} · vaulted` };
   if (known) return { key: "known", label: `Held — ${known.label}` };
   const name = ens?.name || os?.username;
   // A contract we can name (ENS / OpenSea) is a lead, not a dead end.
@@ -95,13 +98,15 @@ function statusFor({ activity, isContract, ens, os }, known, museum) {
 }
 
 // Signs-of-life evidence prose that sits under the status pill.
-function signsProse({ activity, isContract, is7702, ens, os }, known, museum) {
+function signsProse({ activity, isContract, is7702, ens, os }, known, museum, vault) {
   if (museum) {
     const custodian = ens?.name || os?.username;
     return `In the permanent collection of ${esc(museum.name)} — ${
       custodian ? `custodied on-chain by ${esc(custodian)}` : "custodied on-chain by a wallet with no public identity"
     }.`;
   }
+  if (vault)
+    return `Held in ${esc(vault.label)}, a known long-term vault. Wallets like this are built to sit still — the absence of outbound transactions is deliberate cold storage, not a sign the punk is lost or unreachable.`;
   if (known && known.category === "lending")
     return `Held by ${esc(known.label)}, a contract — transaction-based liveness doesn't apply here. See the lead below.`;
   if (isContract === true) {
@@ -234,6 +239,9 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
   // Museum holdings are the canonical V2 token (the punk-level banner adds the
   // link/story); mark the status institutional.
   const museum = kind === "V2" ? curated?.museum?.[id] : null;
+  // Known vault wallet (from LostPunks' curated labels) — reframes dormancy as
+  // deliberate custody. Applies to either version, keyed on the beneficial owner.
+  const vault = curated?.vaults?.[token.owner?.toLowerCase()] || null;
 
   // Evidence accumulator — each ref() appends a { text, href } source and
   // returns its superscript number. Every evidence item is a link to its source.
@@ -258,6 +266,10 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
         : "";
       signals.push(`${av}${esc(ens.name)}${ref(`ENS record · ${esc(ens.name)}`, `https://app.ens.domains/${encodeURIComponent(ens.name)}`)}`);
     }
+    if (vault && (!ens || ens.name.toLowerCase() !== vault.label.toLowerCase()))
+      signals.push(
+        `${esc(vault.label)}${ref(`Curated vault label · ${esc(vault.label)}`, `${S.evmNowAddressBase}${token.owner}`)}`
+      );
     if (known)
       signals.push(
         `${esc(known.label)}${ref(`Curated label · ${esc(known.label)}${contractName ? ` (${esc(contractName)})` : ""}`, known.url || `${S.evmNowAddressBase}${token.owner}`)}`
@@ -280,7 +292,7 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
 
   // Status + signs + optional lead. Museum's source ref lives in Identity, so no
   // duplicate here.
-  const st = statusFor(enrich, known, museum);
+  const st = statusFor(enrich, known, museum, vault);
   const signsRef = museum
     ? ""
     : ref(`evm.now/address/${short(token.owner)}/activity · last outbound tx`, `${S.evmNowAddressBase}${token.owner}/activity`);
@@ -329,7 +341,7 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
       <div class="pf-row-label">Status</div>
       <div class="pf-row-value">
         <div class="pf-status-block"><span class="pf-status pf-status--${st.key}">${esc(st.label)}</span></div>
-        <p class="pf-signs"><strong>Signs of life:</strong> ${signsProse(enrich, known, museum)}${signsRef}</p>
+        <p class="pf-signs"><strong>Signs of life:</strong> ${signsProse(enrich, known, museum, vault)}${signsRef}</p>
         ${lead}
       </div>
     </div>

@@ -7,7 +7,7 @@
 
 import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -15,6 +15,9 @@ const SITES = join(ROOT, "..");
 const BURNED_DIR = join(SITES, "BurnedPunks", "punks");
 const MUSEUM_DIR = join(SITES, "MuseumPunks", "punks");
 const INST_DIR = join(SITES, "MuseumPunks", "institutions");
+// Known-vault wallet labels live in LostPunks — one source of truth for "which
+// wallets are deliberate long-term vaults" across both sites.
+const LABELS_FILE = join(SITES, "LostPunks", "_data", "labels.js");
 
 function frontMatter(text) {
   const m = text.match(/^---\n([\s\S]*?)\n---/);
@@ -58,13 +61,27 @@ for (const [id, fm] of Object.entries(readPunks(MUSEUM_DIR))) {
   museum[id] = { name: instNames[fm.institution] || fm.institution || null };
 }
 
+// Known vaults — addresses flagged `vault: true` in LostPunks' labels.js. These
+// wallets are designed to sit still, so their outbound silence is intentional
+// custody, not a lost punk. Keyed by lowercase address → { label }.
+const vaults = {};
+if (existsSync(LABELS_FILE)) {
+  const mod = await import(pathToFileURL(LABELS_FILE).href);
+  for (const [addr, val] of Object.entries(mod.default || {})) {
+    if (val && typeof val === "object" && val.vault) vaults[addr.toLowerCase()] = { label: val.label };
+  }
+}
+
 const out = {
   generatedAt: new Date().toISOString(),
   burnedBase: "https://burnedpunks.com/",
   museumBase: "https://museumpunks.com/",
   burned,
   museum,
+  vaults,
 };
 writeFileSync(join(ROOT, "data", "curated.json"), JSON.stringify(out));
-console.log(`wrote curated.json — ${Object.keys(burned).length} burned, ${Object.keys(museum).length} museum`);
+console.log(
+  `wrote curated.json — ${Object.keys(burned).length} burned, ${Object.keys(museum).length} museum, ${Object.keys(vaults).length} vaults`
+);
 console.log("685:", JSON.stringify(out.burned["685"]), "| 110:", JSON.stringify(out.museum["110"]));
