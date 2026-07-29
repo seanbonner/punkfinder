@@ -219,7 +219,6 @@
   border-bottom: 1px solid var(--pf-hair);
 }
 .pf-claim strong { color: var(--pf-ink); font-weight: 500; }
-.pf-museum strong { color: var(--pf-accent); }
 
 /* --------------------------------------------------------------------------
    Token panels (V1 / V2)

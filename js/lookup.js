@@ -41,25 +41,12 @@ const WRAPPER_NAMES = {
 const short = (a) => (a && a.length > 10 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a || "");
 const isZero = (a) => !a || a.toLowerCase() === ZERO;
 
-// A punk held by one of these is burned — the null/dead address, or the
-// CryptoPunks contract itself (a known burn destination).
-const BURN_ADDRESSES = new Set(
-  [
-    ZERO,
-    "0x000000000000000000000000000000000000dead",
-    CONTRACTS.V1,
-    CONTRACTS.V2,
-  ].map((a) => a.toLowerCase())
-);
-const isBurn = (a) => !!a && BURN_ADDRESSES.has(a.toLowerCase());
-const sameAddr = (a, b) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
-const burnDestination = (a) => {
-  const l = (a || "").toLowerCase();
-  if (l === ZERO) return "the null address";
-  if (l === "0x000000000000000000000000000000000000dead") return "the dead address";
-  if (l === CONTRACTS.V1.toLowerCase() || l === CONTRACTS.V2.toLowerCase()) return "the CryptoPunks contract";
-  return short(a);
-};
+// CryptoPunks anomalies: three "out of range" V1-only tokens claimed above
+// 10,000 (incl. the max uint256). Burned punks are handled purely from the
+// curated BurnedPunks list (by id), not by inspecting wallets.
+const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
+const displayId = (id) => (String(id) === MAX_UINT256 ? "2²⁵⁶−1" : String(id));
+const punkLink = (id, text) => `<a href="/?punk=${encodeURIComponent(id)}">${esc(text ?? id)}</a>`;
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const today = () => new Date().toISOString().slice(0, 10);
@@ -109,7 +96,7 @@ function statusFor({ activity, isContract, ens, os }, known, museum) {
 
 // Signs-of-life evidence prose that sits under the status pill.
 function signsProse({ activity, isContract, is7702, ens, os }, known, museum) {
-  if (museum) return `In the permanent collection of ${esc(museum.name)} — see the note above.`;
+  if (museum) return `In the permanent collection of ${esc(museum.name)}.`;
   if (known && known.category === "lending")
     return `Held by ${esc(known.label)}, a contract — transaction-based liveness doesn't apply here. See the lead below.`;
   if (isContract === true) {
@@ -175,47 +162,47 @@ function panelLinks(kind, id, token) {
 
 function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
   const contractLine = `<div class="pf-panel-contract">${short(CONTRACTS[kind])}</div>`;
+  const wrap = (inner) =>
+    `<article class="pf-panel"><header class="pf-panel-head"><h2 class="pf-panel-label">${kind} Token</h2>${contractLine}</header>${inner}</article>`;
 
-  // Burned: the token exists but its holder is a burn destination — either a
-  // generic burn address, or the specific address this punk was burned to (from
-  // the curated BurnedPunks list, which covers the non-standard destinations).
-  const burnedInfo = curated?.burned?.[id];
-  if (token && (isBurn(token.owner) || (burnedInfo?.final && sameAddr(token.owner, burnedInfo.final)))) {
+  // Burned — from the curated BurnedPunks list, keyed by punk id (the list is
+  // the source of truth; update it there and it reflects here). Burns are of the
+  // canonical V2 token.
+  const burnedInfo = kind === "V2" ? curated?.burned?.[id] : null;
+  if (burnedInfo) {
     const base = curated?.burnedBase || "https://burnedpunks.com/";
-    const detail = burnedInfo
-      ? `An ${esc((burnedInfo.intent || "").trim())} burn${burnedInfo.by ? ` by ${esc(burnedInfo.by)}` : ""}, sent to ${burnDestination(token.owner)}.`
-      : `Sent to ${burnDestination(token.owner)} — a burn address.`;
-    return `<article class="pf-panel">
-      <header class="pf-panel-head"><h2 class="pf-panel-label">${kind} Token</h2>${contractLine}</header>
-      <div class="pf-row">
-        <div class="pf-row-label">Status</div>
-        <div class="pf-row-value">
-          <div class="pf-status-block"><span class="pf-status pf-status--burned">Burned</span></div>
-          <p class="pf-signs">${detail}</p>
-          <p class="pf-signs"><a href="${esc(base + id)}" target="_blank" rel="noopener">The story on burnedpunks.com ↗</a></p>
-        </div>
-      </div>
-    </article>`;
+    const intent = (burnedInfo.intent || "").trim();
+    const detail = `${intent ? intent[0].toUpperCase() + intent.slice(1) + " burn" : "Burned"}${burnedInfo.by ? ` by ${esc(burnedInfo.by)}` : ""}.`;
+    return wrap(`
+      <div class="pf-row"><div class="pf-row-label">Status</div><div class="pf-row-value">
+        <div class="pf-status-block"><span class="pf-status pf-status--burned">Burned</span></div>
+        <p class="pf-signs">${detail}</p>
+      </div></div>
+      <footer class="pf-evidence"><div class="pf-evidence-label">Evidence</div>
+        <ol><li><a href="${esc(base + id)}" target="_blank" rel="noopener">burnedpunks.com/${esc(id)} · burn record</a></li></ol>
+      </footer>`);
   }
 
+  // No record on this contract — the V1/V2 anomalies.
   if (!token) {
-    const other = kind === "V1" ? "V2" : "V1";
-    let body;
     if (otherExists && kind === "V1") {
-      // A V2-only punk (1416 / 1838 / 1841) — tell the V1/V2 story and point to
-      // its mirror image, the three V1-only curios (all still actively held).
-      body =
-        `<p class="pf-signs"><strong>Exists only on V2.</strong> This CryptoPunk was airdropped on the canonical V2 contract but never claimed on the original, buggy June 2017 V1 contract — so it has no V1 token. Only three ids did this: 1416, 1838, and 1841.</p>` +
-        `<p class="pf-signs">The mirror also exists — three tokens live only on that original V1 contract: #76623, #9845944, and the max-integer punk (2<sup>256</sup>−1), minted by the same bug and all still held in active wallets today.</p>`;
-    } else if (otherExists) {
-      body = `<p class="pf-signs">This CryptoPunk exists only on the ${other} contract — there is no ${kind} token.</p>`;
-    } else {
-      body = `<p class="pf-signs">No ${kind} record on file for this id.</p>`;
+      return wrap(
+        `<p class="pf-signs">#${esc(displayId(id))} exists only on the canonical V2 contract. It was never claimed on the V1 contract so there is no V1 token for it. Only three punks are like this: ${punkLink("1416")}, ${punkLink("1838")}, and ${punkLink("1841")}.</p>`
+      );
     }
-    return `<article class="pf-panel">
-      <header class="pf-panel-head"><h2 class="pf-panel-label">${kind} Token</h2>${contractLine}</header>
-      ${body}
-    </article>`;
+    if (otherExists && kind === "V2") {
+      return wrap(
+        `<p class="pf-signs">There are three tokens that were claimed on the V1 contract above 10,000. These "out of range" claims have no associated punk and are not reflected on the V2 contract: ${punkLink("76623", "#76623")}, ${punkLink("9845944", "#9845944")}, and ${punkLink(MAX_UINT256)}.</p>`
+      );
+    }
+    return wrap(`<p class="pf-signs">No ${kind} record on file for this id.</p>`);
+  }
+
+  // Present but at the null address (an undocumented burn) — no active holder.
+  if (isZero(token.owner)) {
+    return wrap(
+      `<p class="pf-signs">No active holder — this token sits at the null address. A documented burn would appear on <a href="https://burnedpunks.com/${esc(id)}" target="_blank" rel="noopener">burnedpunks.com</a>.</p>`
+    );
   }
 
   const { ens, os, ensRecords, contractName } = enrich;
@@ -264,7 +251,9 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
 
   // Status + signs + optional lead
   const st = statusFor(enrich, known, museum);
-  const signsRef = ref(`evm.now/address/${short(token.owner)}/activity · last outbound tx`, `${S.evmNowAddressBase}${token.owner}/activity`);
+  const signsRef = museum
+    ? ref(`museumpunks.com/${id} · museum record`, `${curated?.museumBase || "https://museumpunks.com/"}${id}`)
+    : ref(`evm.now/address/${short(token.owner)}/activity · last outbound tx`, `${S.evmNowAddressBase}${token.owner}/activity`);
   const lead = known
     ? `<aside class="pf-lead"><div class="pf-lead-label">Lead · ${esc(known.label)}</div><p>${esc(known.note)} <a href="${esc(known.url)}" target="_blank" rel="noopener">${esc(hostOf(known.url))} ↗</a></p></aside>`
     : "";
@@ -315,7 +304,7 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
   </article>`;
 }
 
-function caseHead(id, v1, v2, traits, imgSrc) {
+function caseHead(id, v1, v2, traits) {
   // Existence-based (a token record can exist while its holder is a burn/zero
   // address — that's burned, not "missing").
   const hasV1 = !!v1;
@@ -329,19 +318,22 @@ function caseHead(id, v1, v2, traits, imgSrc) {
   } else if (hasV1) {
     custody = "V1 ONLY";
   }
-  const eyebrow = traits ? `Case #${id} · ${esc(traits.t)}` : `Case #${id} · CryptoPunk · V1 + V2`;
+  const inRange = /^\d{1,4}$/.test(String(id)) && Number(id) <= 9999;
+  const disp = esc(displayId(id));
+  const eyebrow = traits ? `Case #${disp} · ${esc(traits.t)}` : `Case #${disp} · CryptoPunk`;
   const attrs =
     traits && traits.a?.length
       ? `<div class="pf-case-attrs">${traits.a.map((a) => `<span>${esc(a)}</span>`).join("")}</div>`
       : "";
-  // Local render (PNG data URI); fall back to the cryptopunks.app image only if
-  // the pixel bundle didn't load.
-  const src = imgSrc || `${S.imageBase}${id}/image?transparent=true&bg=f0efeb`;
+  // Out-of-range V1-only tokens have no CryptoPunks image — use the placeholder.
+  const img = inRange
+    ? `<img class="pf-punk-img" src="${S.imageBase}${id}/image?transparent=true&bg=f0efeb" alt="CryptoPunk #${disp}" width="88" height="88">`
+    : `<div class="pf-punk-img" aria-hidden="true">—</div>`;
   return `<section class="pf-case-head">
-    <img class="pf-punk-img" src="${src}" alt="CryptoPunk #${id}" width="88" height="88">
+    ${img}
     <div class="pf-case-title">
       <div class="pf-case-eyebrow">${eyebrow}</div>
-      <h1 class="pf-case-id">Punk ${id}</h1>
+      <h1 class="pf-case-id">Punk ${disp}</h1>
       ${attrs}
     </div>
     <div class="pf-case-meta">
@@ -350,13 +342,6 @@ function caseHead(id, v1, v2, traits, imgSrc) {
       Source <strong>LIVE INDEXER</strong>
     </div>
   </section>`;
-}
-
-function museumBanner(id, curated) {
-  const m = curated?.museum?.[id];
-  if (!m || !m.name) return "";
-  const base = curated.museumBase || "https://museumpunks.com/";
-  return `<div class="pf-claim pf-museum">In the permanent collection of <strong>${esc(m.name)}</strong> · <a href="${esc(base + id)}" target="_blank" rel="noopener">the story on museumpunks.com ↗</a></div>`;
 }
 
 function claimLine(claim, claimerEns) {
@@ -393,31 +378,34 @@ async function enrichOwners(v1, v2) {
   return (t) => (t && t.owner && !isZero(t.owner) ? by[t.owner.toLowerCase()] : {});
 }
 
-async function render(id) {
+async function render(rawId) {
   const out = $("#pf-results");
   document.body.classList.remove("pf-home"); // leave the centered landing once a lookup runs
-  if (!Number.isInteger(id) || id < 0 || id > 9999) {
-    out.innerHTML = `<p class="pf-note"><strong>Enter a punk number, 0–9999.</strong> Wallet-address lookup is coming soon.</p>`;
+  const id = String(rawId).trim();
+  if (!/^\d+$/.test(id)) {
+    out.innerHTML = `<p class="pf-note"><strong>Enter a CryptoPunk number (0–9999).</strong> Wallet-address lookup is coming soon.</p>`;
     return;
   }
-  out.innerHTML = `<p class="pf-loading">> resolving punk #${id}…</p>`;
+  // In range = a normal 0–9999 punk (has traits + an image). Out-of-range ids
+  // are the V1-only "curio" tokens claimed above 10,000.
+  const inRange = /^\d{1,4}$/.test(id) && Number(id) <= 9999;
+  out.innerHTML = `<p class="pf-loading">> resolving #${esc(displayId(id))}…</p>`;
   try {
     const { v1, v2 } = await fetchPunk(id);
     if (!v1 && !v2) {
-      out.innerHTML = `<p class="pf-note"><strong>Case #${id} · not found.</strong> No V1 or V2 record for this id. Try another punk number, 0–9999.</p>`;
+      out.innerHTML = `<p class="pf-note"><strong>#${esc(displayId(id))} · not found.</strong> No V1 or V2 record for this id.</p>`;
       return;
     }
     const [enrichFor, claim, traits, acquired, curated] = await Promise.all([
       enrichOwners(v1, v2),
       fetchClaim(id).catch(() => null),
-      getTraits(id).catch(() => null),
+      inRange ? getTraits(Number(id)).catch(() => null) : Promise.resolve(null),
       fetchAcquired(id).catch(() => null),
       fetchCurated().catch(() => null),
     ]);
     const claimerEns = claim?.by && !isZero(claim.by) ? await resolveEns(claim.by).catch(() => null) : null;
     out.innerHTML =
       caseHead(id, v1, v2, traits) +
-      museumBanner(id, curated) +
       claimLine(claim, claimerEns) +
       `<section class="pf-panels">${tokenPanel("V2", id, v2, enrichFor(v2), acquired?.v2, !!v1, curated)}${tokenPanel("V1", id, v1, enrichFor(v1), acquired?.v1, !!v2, curated)}</section>`;
     out.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -436,16 +424,16 @@ function main() {
   $("#lookup-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const raw = input.value.trim();
-    const id = parseInt(raw, 10);
-    history.replaceState(null, "", `?punk=${raw}`);
-    render(id);
+    history.replaceState(null, "", `?punk=${encodeURIComponent(raw)}`);
+    render(raw);
   });
 
-  const param = new URLSearchParams(location.search).get("punk");
-  const id = param !== null ? parseInt(param, 10) : NaN;
-  if (Number.isInteger(id) && id >= 0 && id <= 9999) {
-    input.value = id;
-    render(id);
+  // Deep links (?punk=…) accept any digit id, including the out-of-range V1-only
+  // tokens the anomaly copy links to; typed input stays capped at 0–9999.
+  const param = (new URLSearchParams(location.search).get("punk") || "").trim();
+  if (/^\d+$/.test(param)) {
+    input.value = param;
+    render(param);
   } else {
     document.body.classList.add("pf-home"); // centered landing until the first lookup
   }
