@@ -73,6 +73,20 @@ export async function fetchAcquired(id) {
   return { v1: at(data.v1), v2: at(data.v2) };
 }
 
+// Total punks (V1 + V2) a wallet holds beneficially — for the "also holds N
+// CryptoPunks" hint. Uses the indexer's totalCount on the owner filter.
+const HOLDINGS_QUERY = `
+  query Holdings($addr: String!) {
+    punks(where: { owner: $addr }) { totalCount }
+    v1Punks(where: { owner: $addr }) { totalCount }
+  }
+`;
+
+export async function fetchHoldings(address) {
+  const data = await gql(HOLDINGS_QUERY, { addr: address.toLowerCase() });
+  return (data.punks?.totalCount ?? 0) + (data.v1Punks?.totalCount ?? 0);
+}
+
 // Whole-wallet liveness. `lastActiveAt` tracks tx-from on the EOA — any signed
 // transaction, not just punk activity (spec §5). The spend/earn aggregates in
 // the same response ARE punk-scoped; we ignore them here.

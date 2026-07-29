@@ -4,7 +4,7 @@
 // full §6 status verdicts fill in later. Status pill uses the canonical
 // vocabulary keys (reachable/active/dormant/lost/vault/heldna/inst/burned/lead).
 
-import { fetchPunk, fetchClaim, fetchAcquired } from "/js/indexer.js";
+import { fetchPunk, fetchClaim, fetchAcquired, fetchHoldings } from "/js/indexer.js";
 import { resolveActivity } from "/js/activity.js";
 import { getCodeInfo } from "/js/rpc.js";
 import { knownFor } from "/js/known.js";
@@ -280,12 +280,25 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
     ? `<aside class="pf-lead"><div class="pf-lead-label">Lead · ${esc(known.label)}</div><p>${esc(known.note)} <a href="${esc(known.url)}" target="_blank" rel="noopener">${esc(hostOf(known.url))} ↗</a></p></aside>`
     : "";
 
-  const custody = custodySteps(token)
-    .map(
-      (s) =>
-        `<li><span class="pf-kind">${s.kind}</span>${s.value}</li>`
-    )
-    .join("");
+  const steps = custodySteps(token);
+  const custody = steps.map((s) => `<li><span class="pf-kind">${s.kind}</span>${s.value}</li>`).join("");
+  // Custody only adds information when there's a wrapper/vault step — for a
+  // directly-held punk it just repeats the Holder, so hide it.
+  const custodyRow =
+    steps.length > 1
+      ? `<div class="pf-row"><div class="pf-row-label">Custody</div><div class="pf-row-value"><ol class="pf-custody">${custody}</ol></div></div>`
+      : "";
+
+  // "also holds N CryptoPunks" — links to the wallet's cryptopunks.app account
+  // page (their punks + activity). Shown when they hold more than this one.
+  const holdings = enrich.holdings || 0;
+  const holdingsSub =
+    holdings > 1
+      ? `<span class="pf-sub">also holds <a href="${S.cryptopunksAccountBase}${token.owner}" target="_blank" rel="noopener">${holdings - 1} more CryptoPunk${holdings - 1 === 1 ? "" : "s"}</a></span>`
+      : "";
+  const heldSinceSub = acquiredAt
+    ? `<span class="pf-sub">held since ${new Date(acquiredAt * 1000).toISOString().slice(0, 10)}</span>`
+    : "";
 
   const evidence = ev
     .map((e) => `<li>${e.href ? `<a href="${esc(e.href)}" target="_blank" rel="noopener">${e.text}</a>` : e.text}</li>`)
@@ -296,18 +309,13 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
 
     <div class="pf-row">
       <div class="pf-row-label">Holder</div>
-      <div class="pf-row-value">${evmLink(token.owner)}${holderRef}${
-        acquiredAt ? `<span class="pf-sub">held since ${new Date(acquiredAt * 1000).toISOString().slice(0, 10)}</span>` : ""
-      }</div>
+      <div class="pf-row-value">${evmLink(token.owner)}${holderRef}${heldSinceSub}${holdingsSub}</div>
     </div>
     <div class="pf-row">
       <div class="pf-row-label">Identity</div>
       <div class="pf-row-value">${identity}</div>
     </div>
-    <div class="pf-row">
-      <div class="pf-row-label">Custody</div>
-      <div class="pf-row-value"><ol class="pf-custody">${custody}</ol></div>
-    </div>
+    ${custodyRow}
     <div class="pf-row">
       <div class="pf-row-label">Status</div>
       <div class="pf-row-value">
@@ -379,14 +387,16 @@ async function enrichOwners(v1, v2) {
   const by = {};
   await Promise.all(
     owners.map(async (a) => {
-      const [activity, codeInfo, ens, profile] = await Promise.all([
+      const [activity, codeInfo, ens, profile, holdings] = await Promise.all([
         resolveActivity(a).catch(() => null),
         getCodeInfo(a).catch(() => null),
         resolveEns(a).catch(() => null),
         resolveProfile(a).catch(() => null),
+        fetchHoldings(a).catch(() => 0),
       ]);
       by[a] = {
         activity,
+        holdings,
         isContract: codeInfo?.isContract ?? null,
         codeHash: codeInfo?.codeHash ?? null,
         contractName: codeInfo?.contractName ?? null,
