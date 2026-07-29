@@ -29,9 +29,11 @@ title: How it works
   <div class="pf-legend">
     <div><span class="pf-status pf-status--reachable">Reachable</span><span>An identity is attached (ENS, curated label, or OpenSea) — there's a way to reach the owner.</span></div>
     <div><span class="pf-status pf-status--active">Active — anonymous</span><span>Recently signed a transaction, but no published identity.</span></div>
-    <div><span class="pf-status pf-status--known">Held — YugaLabs</span><span>Held by a named contract — a lending protocol, an institutional vault, a Safe multisig.</span></div>
+    <div><span class="pf-status pf-status--vault">Held — Yuga Labs · vaulted</span><span>A known long-term vault. These wallets are built to sit still, so the quiet is deliberate custody, not a lost punk.</span></div>
+    <div><span class="pf-status pf-status--known">Held — contract</span><span>Held by a named contract — a lending protocol or a Safe multisig — reachable through that entity, not gauged by transactions.</span></div>
+    <div><span class="pf-status pf-status--known">Held — no outbound activity</span><span>The wallet has never signed an outbound transaction — a receive-only or cold wallet, not the same as one gone quiet for years.</span></div>
     <div><span class="pf-status pf-status--inactive">Inactive</span><span>No signed activity for a while.</span></div>
-    <div><span class="pf-status pf-status--lost">Long inactive</span><span>Years without a signed transaction — possibly lost.</span></div>
+    <div><span class="pf-status pf-status--lost">Long inactive</span><span>Years without a signed transaction, and no recent acquisition — possibly lost.</span></div>
   </div>
   <p>When a punk is held somewhere it might actually be bought — for example as collateral in a <a href="https://www.gondi.xyz/">Gondi</a> loan — the panel adds a <strong>Lead</strong> callout pointing to the next step.</p>
 
