@@ -52,6 +52,7 @@ const BURN_ADDRESSES = new Set(
   ].map((a) => a.toLowerCase())
 );
 const isBurn = (a) => !!a && BURN_ADDRESSES.has(a.toLowerCase());
+const sameAddr = (a, b) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
 const burnDestination = (a) => {
   const l = (a || "").toLowerCase();
   if (l === ZERO) return "the null address";
@@ -175,14 +176,15 @@ function panelLinks(kind, id, token) {
 function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
   const contractLine = `<div class="pf-panel-contract">${short(CONTRACTS[kind])}</div>`;
 
-  // Burned: the token record exists but its holder is a burn address (the null
-  // or dead address, or the CryptoPunks contract itself).
-  if (token && isBurn(token.owner)) {
-    const b = curated?.burned?.[id];
+  // Burned: the token exists but its holder is a burn destination — either a
+  // generic burn address, or the specific address this punk was burned to (from
+  // the curated BurnedPunks list, which covers the non-standard destinations).
+  const burnedInfo = curated?.burned?.[id];
+  if (token && (isBurn(token.owner) || (burnedInfo?.final && sameAddr(token.owner, burnedInfo.final)))) {
     const base = curated?.burnedBase || "https://burnedpunks.com/";
-    const detail = b
-      ? `An ${esc((b.intent || "").trim())} burn${b.by ? ` by ${esc(b.by)}` : ""} — sent to ${burnDestination(token.owner)}, and it can't move again.`
-      : `Sent to ${burnDestination(token.owner)}, and it can't move again.`;
+    const detail = burnedInfo
+      ? `An ${esc((burnedInfo.intent || "").trim())} burn${burnedInfo.by ? ` by ${esc(burnedInfo.by)}` : ""}, sent to ${burnDestination(token.owner)}.`
+      : `Sent to ${burnDestination(token.owner)} — a burn address.`;
     return `<article class="pf-panel">
       <header class="pf-panel-head"><h2 class="pf-panel-label">${kind} Token</h2>${contractLine}</header>
       <div class="pf-row">

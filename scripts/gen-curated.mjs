@@ -46,7 +46,12 @@ if (existsSync(INST_DIR)) {
 
 const burned = {};
 for (const [id, fm] of Object.entries(readPunks(BURNED_DIR))) {
-  burned[id] = { intent: fm.intent || null, by: fm.burner_name || fm.claimer_name || null };
+  burned[id] = {
+    intent: fm.intent || null,
+    by: fm.burner_name || fm.claimer_name || null,
+    // Where it went — the burn destination, used to identify the burned token.
+    final: (fm.final_wallet || "").toLowerCase() || null,
+  };
 }
 const museum = {};
 for (const [id, fm] of Object.entries(readPunks(MUSEUM_DIR))) {
