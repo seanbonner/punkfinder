@@ -136,7 +136,7 @@ function panelLinks(kind, id, token) {
     // punksmarket is V1-only.
     links.push([`${S.v1cryptopunksBase}${id}`, "v1cryptopunks"], opensea, [`${S.punksMarketBase}${id}`, "punksmarket"]);
   }
-  if (!isZero(token.owner)) links.push([`${S.evmNowAddressBase}${token.owner}`, "evm.now holder"]);
+  // No evm.now-holder link here — it's already in the Evidence section.
   return `<nav class="pf-linkouts" aria-label="${kind} — open in">${links
     .map(([href, label]) => `<a href="${href}" target="_blank" rel="noopener">${esc(label)}<span class="pf-arrow">↗</span></a>`)
     .join("")}</nav>`;
