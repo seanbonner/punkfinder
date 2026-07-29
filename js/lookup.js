@@ -96,7 +96,12 @@ function statusFor({ activity, isContract, ens, os }, known, museum) {
 
 // Signs-of-life evidence prose that sits under the status pill.
 function signsProse({ activity, isContract, is7702, ens, os }, known, museum) {
-  if (museum) return `In the permanent collection of ${esc(museum.name)}.`;
+  if (museum) {
+    const custodian = ens?.name || os?.username;
+    return `In the permanent collection of ${esc(museum.name)} — ${
+      custodian ? `custodied on-chain by ${esc(custodian)}` : "custodied on-chain by a wallet with no public identity"
+    }.`;
+  }
   if (known && known.category === "lending")
     return `Held by ${esc(known.label)}, a contract — transaction-based liveness doesn't apply here. See the lead below.`;
   if (isContract === true) {
@@ -171,28 +176,39 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
   const burnedInfo = kind === "V2" ? curated?.burned?.[id] : null;
   if (burnedInfo) {
     const base = curated?.burnedBase || "https://burnedpunks.com/";
+    const mus = curated?.museum?.[id]; // some burns are on display at a museum
+    const musBase = curated?.museumBase || "https://museumpunks.com/";
     const intent = (burnedInfo.intent || "").trim();
-    const detail = `${intent ? intent[0].toUpperCase() + intent.slice(1) + " burn" : "Burned"}${burnedInfo.by ? ` by ${esc(burnedInfo.by)}` : ""}.`;
+    const detail =
+      `${intent ? intent[0].toUpperCase() + intent.slice(1) + " burn" : "Burned"}${burnedInfo.by ? ` by ${esc(burnedInfo.by)}` : ""}.` +
+      (mus ? ` On display at ${esc(mus.name)}.` : "");
+    const evItems = [`<li><a href="${esc(base + id)}" target="_blank" rel="noopener">burnedpunks.com/${esc(id)} · burn record</a></li>`];
+    if (mus) evItems.push(`<li><a href="${esc(musBase + id)}" target="_blank" rel="noopener">museumpunks.com/${esc(id)} · museum record</a></li>`);
     return wrap(`
       <div class="pf-row"><div class="pf-row-label">Status</div><div class="pf-row-value">
         <div class="pf-status-block"><span class="pf-status pf-status--burned">Burned</span></div>
         <p class="pf-signs">${detail}</p>
       </div></div>
       <footer class="pf-evidence"><div class="pf-evidence-label">Evidence</div>
-        <ol><li><a href="${esc(base + id)}" target="_blank" rel="noopener">burnedpunks.com/${esc(id)} · burn record</a></li></ol>
+        <ol>${evItems.join("")}</ol>
       </footer>`);
   }
 
-  // No record on this contract — the V1/V2 anomalies.
+  // No record on this contract — the V1/V2 anomalies. Both facts are told on
+  // either anomaly page, worded for the token you're looking at.
   if (!token) {
+    const v2onlyIds = `${punkLink("1416")}, ${punkLink("1838")}, and ${punkLink("1841")}`;
+    const v1onlyIds = `${punkLink("76623", "#76623")}, ${punkLink("9845944", "#9845944")}, and ${punkLink(MAX_UINT256)}`;
     if (otherExists && kind === "V1") {
       return wrap(
-        `<p class="pf-signs">#${esc(displayId(id))} exists only on the canonical V2 contract. It was never claimed on the V1 contract so there is no V1 token for it. Only three punks are like this: ${punkLink("1416")}, ${punkLink("1838")}, and ${punkLink("1841")}.</p>`
+        `<p class="pf-signs">#${esc(displayId(id))} exists only on the canonical V2 contract. It was never claimed on the V1 contract so there is no V1 token for it. Only three punks are like this: ${v2onlyIds}.</p>` +
+          `<p class="pf-signs">Separately, three tokens were claimed on the V1 contract above 10,000. These "out of range" claims have no associated punk and are not reflected on the V2 contract: ${v1onlyIds}.</p>`
       );
     }
     if (otherExists && kind === "V2") {
       return wrap(
-        `<p class="pf-signs">There are three tokens that were claimed on the V1 contract above 10,000. These "out of range" claims have no associated punk and are not reflected on the V2 contract: ${punkLink("76623", "#76623")}, ${punkLink("9845944", "#9845944")}, and ${punkLink(MAX_UINT256)}.</p>`
+        `<p class="pf-signs">#${esc(displayId(id))} is one of three tokens that were claimed on the V1 contract above 10,000. These "out of range" claims have no associated punk and are not reflected on the V2 contract: ${v1onlyIds}.</p>` +
+          `<p class="pf-signs">The reverse also happens — three punks exist only on the canonical V2 contract, never claimed on V1: ${v2onlyIds}.</p>`
       );
     }
     return wrap(`<p class="pf-signs">No ${kind} record on file for this id.</p>`);
@@ -218,41 +234,47 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
 
   const holderRef = ref(`evm.now/address/${short(token.owner)} · ownership (indexer)`, `${S.evmNowAddressBase}${token.owner}`);
 
-  // Identity row — show whatever identity we have (ENS, curated label, OpenSea),
-  // best first with the rest as sub-lines. No provenance-tag boxes (the values
-  // already link to their source), and no "no ENS" placeholder — if there's
-  // nothing, say so plainly. Refs called in visual (top-to-bottom) order.
-  const signals = [];
-  if (ens) {
-    const av = ens.avatar
-      ? `<img class="pf-ens-avatar" src="${esc(ens.avatar)}" alt="" width="16" height="16" onerror="this.style.display='none'">`
-      : "";
-    signals.push(`${av}${esc(ens.name)}${ref(`ENS record · ${esc(ens.name)}`, `https://app.ens.domains/${encodeURIComponent(ens.name)}`)}`);
+  // Identity row — for a museum piece it's the institution itself (the on-chain
+  // custody wallet is noted in the signs line, not treated as the owner).
+  // Otherwise show whatever we have (ENS, curated label, OpenSea), best first,
+  // or say plainly there's nothing. No tag boxes; values link to their source.
+  const museumBase = curated?.museumBase || "https://museumpunks.com/";
+  let identity;
+  if (museum) {
+    identity = `${esc(museum.name)}${ref(`museumpunks.com/${id} · museum record`, `${museumBase}${id}`)}`;
+  } else {
+    const signals = [];
+    if (ens) {
+      const av = ens.avatar
+        ? `<img class="pf-ens-avatar" src="${esc(ens.avatar)}" alt="" width="16" height="16" onerror="this.style.display='none'">`
+        : "";
+      signals.push(`${av}${esc(ens.name)}${ref(`ENS record · ${esc(ens.name)}`, `https://app.ens.domains/${encodeURIComponent(ens.name)}`)}`);
+    }
+    if (known)
+      signals.push(
+        `${esc(known.label)}${ref(`Curated label · ${esc(known.label)}${contractName ? ` (${esc(contractName)})` : ""}`, known.url || `${S.evmNowAddressBase}${token.owner}`)}`
+      );
+    if (os && os.username) {
+      const profileUrl = `${S.openseaAccountBase}${token.owner}`;
+      signals.push(
+        `<a href="${esc(profileUrl)}" target="_blank" rel="noopener">${esc(os.username)}</a>${ref(`OpenSea profile · ${esc(os.username)}`, profileUrl)}`
+      );
+    }
+    const xHandle = ensRecords?.twitter;
+    if (xHandle)
+      signals.push(
+        `X <a href="https://x.com/${encodeURIComponent(xHandle)}" target="_blank" rel="noopener">@${esc(xHandle)}</a>${ref(`ENS com.twitter record · @${esc(xHandle)}`, `https://x.com/${encodeURIComponent(xHandle)}`)}`
+      );
+    identity = signals.length
+      ? signals[0] + signals.slice(1).map((s) => `<span class="pf-sub">${s}</span>`).join("")
+      : `<span class="pf-none">no known on-chain identity</span>`;
   }
-  if (known)
-    signals.push(
-      `${esc(known.label)}${ref(`Curated label · ${esc(known.label)}${contractName ? ` (${esc(contractName)})` : ""}`, known.url || `${S.evmNowAddressBase}${token.owner}`)}`
-    );
-  if (os && os.username) {
-    const profileUrl = `${S.openseaAccountBase}${token.owner}`;
-    signals.push(
-      `<a href="${esc(profileUrl)}" target="_blank" rel="noopener">${esc(os.username)}</a>${ref(`OpenSea profile · ${esc(os.username)}`, profileUrl)}`
-    );
-  }
-  // X handle from the ENS com.twitter text record (self-published, on-chain).
-  const xHandle = ensRecords?.twitter;
-  if (xHandle)
-    signals.push(
-      `X <a href="https://x.com/${encodeURIComponent(xHandle)}" target="_blank" rel="noopener">@${esc(xHandle)}</a>${ref(`ENS com.twitter record · @${esc(xHandle)}`, `https://x.com/${encodeURIComponent(xHandle)}`)}`
-    );
-  const identity = signals.length
-    ? signals[0] + signals.slice(1).map((s) => `<span class="pf-sub">${s}</span>`).join("")
-    : `<span class="pf-none">no known on-chain identity</span>`;
 
-  // Status + signs + optional lead
+  // Status + signs + optional lead. Museum's source ref lives in Identity, so no
+  // duplicate here.
   const st = statusFor(enrich, known, museum);
   const signsRef = museum
-    ? ref(`museumpunks.com/${id} · museum record`, `${curated?.museumBase || "https://museumpunks.com/"}${id}`)
+    ? ""
     : ref(`evm.now/address/${short(token.owner)}/activity · last outbound tx`, `${S.evmNowAddressBase}${token.owner}/activity`);
   const lead = known
     ? `<aside class="pf-lead"><div class="pf-lead-label">Lead · ${esc(known.label)}</div><p>${esc(known.note)} <a href="${esc(known.url)}" target="_blank" rel="noopener">${esc(hostOf(known.url))} ↗</a></p></aside>`
