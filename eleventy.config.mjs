@@ -3,6 +3,7 @@ export default function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy("js");
   eleventyConfig.addPassthroughCopy("images");
   eleventyConfig.addPassthroughCopy("data");
+  eleventyConfig.addPassthroughCopy("_headers");
   // Keep the build spec and any docs out of the built site.
   eleventyConfig.ignores.add("docs/**");
   eleventyConfig.ignores.add("*-spec.md");

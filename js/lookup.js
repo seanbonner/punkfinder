@@ -351,7 +351,7 @@ function caseHead(id, v1, v2, traits) {
   const paired = hasV1 && hasV2 && !isZero(v1.owner) && !isZero(v2.owner) && v1.owner.toLowerCase() === v2.owner.toLowerCase();
   let custody = "—";
   if (hasV1 && hasV2) {
-    custody = paired ? "SAME CUSTODY" : "SPLIT CUSTODY";
+    custody = paired ? "PAIRED" : "SPLIT CUSTODY";
   } else if (hasV2) {
     custody = "V2 ONLY";
   } else if (hasV1) {

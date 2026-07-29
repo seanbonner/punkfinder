@@ -1,0 +1,8 @@
+# The entry script loads as /js/lookup.js?v=HASH, so it's always fresh — but it
+# imports /js/indexer.js and fetches /data/curated.json with bare (unversioned)
+# URLs, which browsers will happily serve stale. no-store forces a fresh fetch
+# every load so a changed module never mismatches the entry script.
+/js/*
+  Cache-Control: no-store
+/data/*
+  Cache-Control: no-store
