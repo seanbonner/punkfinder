@@ -131,12 +131,17 @@ function panelLinks(kind, id, token) {
   // OpenSea has a page for every state (native, wrapped, 721) — always link it,
   // and always last. punks.auction (per-punk offers) applies to either version.
   const opensea = [`${S.openseaItemBase}${openseaContract(kind, token)}/${id}`, "opensea"];
-  const auction = [`${S.punksAuctionBase}${id}`, "punks.auction"];
   if (kind === "V2") {
-    links.push([`${S.cryptopunksDetailsBase}${id}`, "cryptopunks.app"], [`${S.cryptopunksEthBase}${id}`, "cryptopunks.eth"], auction, opensea);
+    // punks.auction currently lists V2 only.
+    links.push(
+      [`${S.cryptopunksDetailsBase}${id}`, "cryptopunks.app"],
+      [`${S.cryptopunksEthBase}${id}`, "cryptopunks.eth"],
+      [`${S.punksAuctionBase}${id}`, "punks.auction"],
+      opensea
+    );
   } else {
     // punksmarket is V1-only.
-    links.push([`${S.v1cryptopunksBase}${id}`, "v1cryptopunks"], [`${S.punksMarketBase}${id}`, "punksmarket"], auction, opensea);
+    links.push([`${S.v1cryptopunksBase}${id}`, "v1cryptopunks"], [`${S.punksMarketBase}${id}`, "punksmarket"], opensea);
   }
   // Rendered like the Evidence section — a labeled bulleted list, one per line.
   return `<footer class="pf-evidence pf-markets">
@@ -145,12 +150,16 @@ function panelLinks(kind, id, token) {
   </footer>`;
 }
 
-function tokenPanel(kind, id, token, enrich, acquiredAt) {
+function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists) {
   const contractLine = `<div class="pf-panel-contract">${short(CONTRACTS[kind])}</div>`;
   if (!token || isZero(token.owner)) {
+    const other = kind === "V1" ? "V2" : "V1";
+    const msg = otherExists
+      ? `This CryptoPunk exists only on the ${other} contract — there is no ${kind} token.`
+      : `No ${kind} record on file for this id.`;
     return `<article class="pf-panel">
       <header class="pf-panel-head"><h2 class="pf-panel-label">${kind} Token</h2>${contractLine}</header>
-      <p class="pf-signs">No ${kind} record on file for this id${token ? " (no holder)" : ""}.</p>
+      <p class="pf-signs">${msg}</p>
     </article>`;
   }
 
@@ -249,9 +258,15 @@ function tokenPanel(kind, id, token, enrich, acquiredAt) {
 }
 
 function caseHead(id, v1, v2, traits, imgSrc) {
+  const hasV1 = v1 && !isZero(v1.owner);
+  const hasV2 = v2 && !isZero(v2.owner);
   let custody = "—";
-  if (v1 && v2 && !isZero(v1.owner) && !isZero(v2.owner)) {
+  if (hasV1 && hasV2) {
     custody = v1.owner.toLowerCase() === v2.owner.toLowerCase() ? "SAME CUSTODY (paired)" : "SPLIT CUSTODY";
+  } else if (hasV2) {
+    custody = "V2 ONLY";
+  } else if (hasV1) {
+    custody = "V1 ONLY";
   }
   const eyebrow = traits ? `Case #${id} · ${esc(traits.t)}` : `Case #${id} · CryptoPunk · V1 + V2`;
   const attrs =
@@ -312,6 +327,7 @@ async function enrichOwners(v1, v2) {
 
 async function render(id) {
   const out = $("#pf-results");
+  document.body.classList.remove("pf-home"); // leave the centered landing once a lookup runs
   if (!Number.isInteger(id) || id < 0 || id > 9999) {
     out.innerHTML = `<p class="pf-note"><strong>Enter a punk number, 0–9999.</strong> Wallet-address lookup is coming soon.</p>`;
     return;
@@ -333,7 +349,7 @@ async function render(id) {
     out.innerHTML =
       caseHead(id, v1, v2, traits) +
       claimLine(claim, claimerEns) +
-      `<section class="pf-panels">${tokenPanel("V2", id, v2, enrichFor(v2), acquired?.v2)}${tokenPanel("V1", id, v1, enrichFor(v1), acquired?.v1)}</section>`;
+      `<section class="pf-panels">${tokenPanel("V2", id, v2, enrichFor(v2), acquired?.v2, !!v1)}${tokenPanel("V1", id, v1, enrichFor(v1), acquired?.v1, !!v2)}</section>`;
     out.scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (err) {
     out.innerHTML = `<p class="pf-note"><strong>Lookup failed.</strong> ${esc(err.message)}</p>`;
@@ -342,6 +358,11 @@ async function render(id) {
 
 function main() {
   const input = $("#pf-input");
+  // Keep the input to digits only (id 0–9999; maxlength=4 caps the length).
+  input.addEventListener("input", () => {
+    const cleaned = input.value.replace(/\D/g, "");
+    if (cleaned !== input.value) input.value = cleaned;
+  });
   $("#lookup-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const raw = input.value.trim();
@@ -351,12 +372,12 @@ function main() {
   });
 
   const param = new URLSearchParams(location.search).get("punk");
-  if (param !== null) {
-    const id = parseInt(param, 10);
-    if (Number.isInteger(id) && id >= 0 && id <= 9999) {
-      input.value = id;
-      render(id);
-    }
+  const id = param !== null ? parseInt(param, 10) : NaN;
+  if (Number.isInteger(id) && id >= 0 && id <= 9999) {
+    input.value = id;
+    render(id);
+  } else {
+    document.body.classList.add("pf-home"); // centered landing until the first lookup
   }
 }
 

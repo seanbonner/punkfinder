@@ -4,12 +4,14 @@ permalink: /
 title: Find a punk
 ---
 
-<form class="pf-console" id="lookup-form" role="search" autocomplete="off">
-  <label class="pf-console-label" for="pf-input">Lookup</label>
-  <input id="pf-input" type="text" inputmode="numeric" placeholder="Punk number (0–9999)…" required>
-  <button type="submit">Run</button>
-</form>
+<div class="pf-stage">
+  <form class="pf-console" id="lookup-form" role="search" autocomplete="off">
+    <label class="pf-console-label" for="pf-input">Lookup</label>
+    <input id="pf-input" type="text" inputmode="numeric" maxlength="4" pattern="[0-9]*" placeholder="CryptoPunk number (0–9999)…" required>
+    <button type="submit">Run</button>
+  </form>
 
-<div id="pf-results"></div>
+  <div id="pf-results"></div>
+</div>
 
 <script src="/js/lookup.js?v={{ assetVersion }}" type="module"></script>

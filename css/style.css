@@ -562,6 +562,33 @@ img.pf-punk-img { object-fit: cover; }
   border: 1px solid var(--pf-hair);
 }
 .pf-none { color: var(--pf-meta); }
+
+/* Centered landing (empty home) — the search sits in the middle of the
+   viewport at ~half width, with space around it. Leaves as soon as a lookup
+   runs (the pf-home class is removed). */
+body.pf-home .pf-page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+body.pf-home .pf-stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+body.pf-home .pf-console {
+  max-width: 560px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Mobile: keep the masthead from overflowing the viewport (it was cutting off
+   on the sides), and let it wrap. */
+@media (max-width: 720px) {
+  .pf-masthead { flex-wrap: wrap; gap: 4px 12px; }
+  .pf-masthead-meta { text-align: left; }
+}
 .pf-loading,
 .pf-note {
   font-family: var(--pf-font-mono);
