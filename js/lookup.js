@@ -128,13 +128,15 @@ function custodySteps(token) {
 // and marketplace pages, so each panel gets its own row.
 function panelLinks(kind, id, token) {
   const links = [];
-  // OpenSea has a page for every state (native, wrapped, 721) — always link it.
+  // OpenSea has a page for every state (native, wrapped, 721) — always link it,
+  // and always last. punks.auction (per-punk offers) applies to either version.
   const opensea = [`${S.openseaItemBase}${openseaContract(kind, token)}/${id}`, "opensea"];
+  const auction = [`${S.punksAuctionBase}${id}`, "punks.auction"];
   if (kind === "V2") {
-    links.push([`${S.cryptopunksDetailsBase}${id}`, "cryptopunks.app"], opensea);
+    links.push([`${S.cryptopunksDetailsBase}${id}`, "cryptopunks.app"], [S.cryptopunksEthUrl, "cryptopunks.eth"], auction, opensea);
   } else {
     // punksmarket is V1-only.
-    links.push([`${S.v1cryptopunksBase}${id}`, "v1cryptopunks"], opensea, [`${S.punksMarketBase}${id}`, "punksmarket"]);
+    links.push([`${S.v1cryptopunksBase}${id}`, "v1cryptopunks"], [`${S.punksMarketBase}${id}`, "punksmarket"], auction, opensea);
   }
   // No evm.now-holder link here — it's already in the Evidence section.
   return `<nav class="pf-linkouts" aria-label="${kind} — open in">${links
