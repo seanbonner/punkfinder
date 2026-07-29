@@ -133,15 +133,16 @@ function panelLinks(kind, id, token) {
   const opensea = [`${S.openseaItemBase}${openseaContract(kind, token)}/${id}`, "opensea"];
   const auction = [`${S.punksAuctionBase}${id}`, "punks.auction"];
   if (kind === "V2") {
-    links.push([`${S.cryptopunksDetailsBase}${id}`, "cryptopunks.app"], [S.cryptopunksEthUrl, "cryptopunks.eth"], auction, opensea);
+    links.push([`${S.cryptopunksDetailsBase}${id}`, "cryptopunks.app"], [`${S.cryptopunksEthBase}${id}`, "cryptopunks.eth"], auction, opensea);
   } else {
     // punksmarket is V1-only.
     links.push([`${S.v1cryptopunksBase}${id}`, "v1cryptopunks"], [`${S.punksMarketBase}${id}`, "punksmarket"], auction, opensea);
   }
-  // No evm.now-holder link here — it's already in the Evidence section.
-  return `<nav class="pf-linkouts" aria-label="${kind} — open in">${links
-    .map(([href, label]) => `<a href="${href}" target="_blank" rel="noopener">${esc(label)}<span class="pf-arrow">↗</span></a>`)
-    .join("")}</nav>`;
+  // Rendered like the Evidence section — a labeled bulleted list, one per line.
+  return `<footer class="pf-evidence pf-markets">
+    <div class="pf-evidence-label">Markets</div>
+    <ul>${links.map(([href, label]) => `<li><a href="${esc(href)}" target="_blank" rel="noopener">${esc(label)}</a></li>`).join("")}</ul>
+  </footer>`;
 }
 
 function tokenPanel(kind, id, token, enrich, acquiredAt) {

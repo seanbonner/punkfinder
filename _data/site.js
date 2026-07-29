@@ -12,7 +12,7 @@ export default {
   openseaAccountBase: "https://opensea.io/",
   punksMarketBase: "https://punksmarket.app/punk/",
   punksAuctionBase: "https://punks.auction/punks/",
-  cryptopunksEthUrl: "https://cryptopunks.eth.limo/",
+  cryptopunksEthBase: "https://cryptopunks.eth.limo/details/",
   v1cryptopunksBase: "https://v1cryptopunks.com/details/",
   // Canonical contracts (see build spec §2).
   v1UnwrappedContract: "0x6Ba6f2207e343923BA692e5Cae646Fb0F566DB8D",
