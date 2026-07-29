@@ -19,8 +19,8 @@
   /* Status vocabulary — colored by activity/reachability, not good/bad.
      Blue = reachable/recently active; grey = known but quiet; amber =
      inactive; red = long inactive / possibly lost; wine = listed for sale. */
-  --pf-st-reachable: #638596;  /* reachable / recently active (CryptoPunks blue) */
-  --pf-st-active:    #638596;  /* recently active — anonymous */
+  --pf-st-reachable: #66a670;  /* reachable — identity attached (CryptoPunks green) */
+  --pf-st-active:    #638596;  /* active — anonymous (CryptoPunks blue) */
   --pf-st-known:     #6b6b6b;  /* known but not very active (contracts, institutions) */
   --pf-st-inactive:  #8a6410;  /* inactive */
   --pf-st-lost:      #a5352a;  /* long inactive / possibly lost */
