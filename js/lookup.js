@@ -179,7 +179,7 @@ function tokenPanel(kind, id, token, enrich, acquiredAt) {
   const xHandle = ensRecords?.twitter;
   if (xHandle)
     subs.push(
-      `X <a href="https://x.com/${esc(xHandle)}" target="_blank" rel="noopener">@${esc(xHandle)}</a><span class="pf-tag">ENS record</span>${ref(`ENS com.twitter record · @${esc(xHandle)}`, `https://x.com/${xHandle}`)}`
+      `X <a href="https://x.com/${encodeURIComponent(xHandle)}" target="_blank" rel="noopener">@${esc(xHandle)}</a><span class="pf-tag">ENS record</span>${ref(`ENS com.twitter record · @${esc(xHandle)}`, `https://x.com/${encodeURIComponent(xHandle)}`)}`
     );
   // OpenSea username (links to the profile at opensea.io/{address}, where the
   // profile page itself surfaces any connected socials).
@@ -214,7 +214,7 @@ function tokenPanel(kind, id, token, enrich, acquiredAt) {
     .join("");
 
   const evidence = ev
-    .map((e) => `<li>${e.href ? `<a href="${e.href}" target="_blank" rel="noopener">${e.text}</a>` : e.text}</li>`)
+    .map((e) => `<li>${e.href ? `<a href="${esc(e.href)}" target="_blank" rel="noopener">${e.text}</a>` : e.text}</li>`)
     .join("");
 
   return `<article class="pf-panel">
