@@ -11,6 +11,7 @@ import { knownFor } from "/js/known.js";
 import { resolveEns } from "/js/ens.js";
 import { resolveProfile } from "/js/identity.js";
 import { getTraits } from "/js/traits.js";
+import { fetchCurated } from "/js/curated.js";
 
 const S = window.SITE;
 const $ = (sel) => document.querySelector(sel);
@@ -39,6 +40,25 @@ const WRAPPER_NAMES = {
 
 const short = (a) => (a && a.length > 10 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a || "");
 const isZero = (a) => !a || a.toLowerCase() === ZERO;
+
+// A punk held by one of these is burned — the null/dead address, or the
+// CryptoPunks contract itself (a known burn destination).
+const BURN_ADDRESSES = new Set(
+  [
+    ZERO,
+    "0x000000000000000000000000000000000000dead",
+    CONTRACTS.V1,
+    CONTRACTS.V2,
+  ].map((a) => a.toLowerCase())
+);
+const isBurn = (a) => !!a && BURN_ADDRESSES.has(a.toLowerCase());
+const burnDestination = (a) => {
+  const l = (a || "").toLowerCase();
+  if (l === ZERO) return "the null address";
+  if (l === "0x000000000000000000000000000000000000dead") return "the dead address";
+  if (l === CONTRACTS.V1.toLowerCase() || l === CONTRACTS.V2.toLowerCase()) return "the CryptoPunks contract";
+  return short(a);
+};
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const today = () => new Date().toISOString().slice(0, 10);
@@ -69,7 +89,8 @@ const evmLink = (addr, text) =>
 // reachability, not good/bad: blue = reachable/recently active, grey = known
 // but quiet, amber = inactive, red = long inactive. `listed` (wine) and the §6
 // verdicts (vault/inst/burned) land with the market + status layers.
-function statusFor({ activity, isContract, ens, os }, known) {
+function statusFor({ activity, isContract, ens, os }, known, museum) {
+  if (museum) return { key: "inst", label: `Held — ${museum.name}` };
   if (known) return { key: "known", label: `Held — ${known.label}` };
   const name = ens?.name || os?.username;
   // A contract we can name (ENS / OpenSea) is a lead, not a dead end.
@@ -86,7 +107,8 @@ function statusFor({ activity, isContract, ens, os }, known) {
 }
 
 // Signs-of-life evidence prose that sits under the status pill.
-function signsProse({ activity, isContract, is7702, ens, os }, known) {
+function signsProse({ activity, isContract, is7702, ens, os }, known, museum) {
+  if (museum) return `In the permanent collection of ${esc(museum.name)} — see the note above.`;
   if (known && known.category === "lending")
     return `Held by ${esc(known.label)}, a contract — transaction-based liveness doesn't apply here. See the lead below.`;
   if (isContract === true) {
@@ -150,9 +172,31 @@ function panelLinks(kind, id, token) {
   </footer>`;
 }
 
-function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists) {
+function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
   const contractLine = `<div class="pf-panel-contract">${short(CONTRACTS[kind])}</div>`;
-  if (!token || isZero(token.owner)) {
+
+  // Burned: the token record exists but its holder is a burn address (the null
+  // or dead address, or the CryptoPunks contract itself).
+  if (token && isBurn(token.owner)) {
+    const b = curated?.burned?.[id];
+    const base = curated?.burnedBase || "https://burnedpunks.com/";
+    const detail = b
+      ? `An ${esc((b.intent || "").trim())} burn${b.by ? ` by ${esc(b.by)}` : ""} — sent to ${burnDestination(token.owner)}, and it can't move again.`
+      : `Sent to ${burnDestination(token.owner)}, and it can't move again.`;
+    return `<article class="pf-panel">
+      <header class="pf-panel-head"><h2 class="pf-panel-label">${kind} Token</h2>${contractLine}</header>
+      <div class="pf-row">
+        <div class="pf-row-label">Status</div>
+        <div class="pf-row-value">
+          <div class="pf-status-block"><span class="pf-status pf-status--burned">Burned</span></div>
+          <p class="pf-signs">${detail}</p>
+          <p class="pf-signs"><a href="${esc(base + id)}" target="_blank" rel="noopener">The story on burnedpunks.com ↗</a></p>
+        </div>
+      </div>
+    </article>`;
+  }
+
+  if (!token) {
     const other = kind === "V1" ? "V2" : "V1";
     let body;
     if (otherExists && kind === "V1") {
@@ -174,6 +218,9 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists) {
 
   const { ens, os, ensRecords, contractName } = enrich;
   const known = knownFor(token.owner, { codeHash: enrich.codeHash, contractName });
+  // Museum holdings are the canonical V2 token (the punk-level banner adds the
+  // link/story); mark the status institutional.
+  const museum = kind === "V2" ? curated?.museum?.[id] : null;
 
   // Evidence accumulator — each ref() appends a { text, href } source and
   // returns its superscript number. Every evidence item is a link to its source.
@@ -214,7 +261,7 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists) {
     : `<span class="pf-none">no known on-chain identity</span>`;
 
   // Status + signs + optional lead
-  const st = statusFor(enrich, known);
+  const st = statusFor(enrich, known, museum);
   const signsRef = ref(`evm.now/address/${short(token.owner)}/activity · last outbound tx`, `${S.evmNowAddressBase}${token.owner}/activity`);
   const lead = known
     ? `<aside class="pf-lead"><div class="pf-lead-label">Lead · ${esc(known.label)}</div><p>${esc(known.note)} <a href="${esc(known.url)}" target="_blank" rel="noopener">${esc(hostOf(known.url))} ↗</a></p></aside>`
@@ -252,7 +299,7 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists) {
       <div class="pf-row-label">Status</div>
       <div class="pf-row-value">
         <div class="pf-status-block"><span class="pf-status pf-status--${st.key}">${esc(st.label)}</span></div>
-        <p class="pf-signs"><strong>Signs of life:</strong> ${signsProse(enrich, known)}${signsRef}</p>
+        <p class="pf-signs"><strong>Signs of life:</strong> ${signsProse(enrich, known, museum)}${signsRef}</p>
         ${lead}
       </div>
     </div>
@@ -267,11 +314,14 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists) {
 }
 
 function caseHead(id, v1, v2, traits, imgSrc) {
-  const hasV1 = v1 && !isZero(v1.owner);
-  const hasV2 = v2 && !isZero(v2.owner);
+  // Existence-based (a token record can exist while its holder is a burn/zero
+  // address — that's burned, not "missing").
+  const hasV1 = !!v1;
+  const hasV2 = !!v2;
   let custody = "—";
   if (hasV1 && hasV2) {
-    custody = v1.owner.toLowerCase() === v2.owner.toLowerCase() ? "SAME CUSTODY (paired)" : "SPLIT CUSTODY";
+    const paired = !isZero(v1.owner) && !isZero(v2.owner) && v1.owner.toLowerCase() === v2.owner.toLowerCase();
+    custody = paired ? "SAME CUSTODY (paired)" : "SPLIT CUSTODY";
   } else if (hasV2) {
     custody = "V2 ONLY";
   } else if (hasV1) {
@@ -298,6 +348,13 @@ function caseHead(id, v1, v2, traits, imgSrc) {
       Source <strong>LIVE INDEXER</strong>
     </div>
   </section>`;
+}
+
+function museumBanner(id, curated) {
+  const m = curated?.museum?.[id];
+  if (!m || !m.name) return "";
+  const base = curated.museumBase || "https://museumpunks.com/";
+  return `<div class="pf-claim pf-museum">In the permanent collection of <strong>${esc(m.name)}</strong> · <a href="${esc(base + id)}" target="_blank" rel="noopener">the story on museumpunks.com ↗</a></div>`;
 }
 
 function claimLine(claim, claimerEns) {
@@ -348,17 +405,19 @@ async function render(id) {
       out.innerHTML = `<p class="pf-note"><strong>Case #${id} · not found.</strong> No V1 or V2 record for this id. Try another punk number, 0–9999.</p>`;
       return;
     }
-    const [enrichFor, claim, traits, acquired] = await Promise.all([
+    const [enrichFor, claim, traits, acquired, curated] = await Promise.all([
       enrichOwners(v1, v2),
       fetchClaim(id).catch(() => null),
       getTraits(id).catch(() => null),
       fetchAcquired(id).catch(() => null),
+      fetchCurated().catch(() => null),
     ]);
     const claimerEns = claim?.by && !isZero(claim.by) ? await resolveEns(claim.by).catch(() => null) : null;
     out.innerHTML =
       caseHead(id, v1, v2, traits) +
+      museumBanner(id, curated) +
       claimLine(claim, claimerEns) +
-      `<section class="pf-panels">${tokenPanel("V2", id, v2, enrichFor(v2), acquired?.v2, !!v1)}${tokenPanel("V1", id, v1, enrichFor(v1), acquired?.v1, !!v2)}</section>`;
+      `<section class="pf-panels">${tokenPanel("V2", id, v2, enrichFor(v2), acquired?.v2, !!v1, curated)}${tokenPanel("V1", id, v1, enrichFor(v1), acquired?.v1, !!v2, curated)}</section>`;
     out.scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (err) {
     out.innerHTML = `<p class="pf-note"><strong>Lookup failed.</strong> ${esc(err.message)}</p>`;

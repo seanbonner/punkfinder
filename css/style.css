@@ -219,6 +219,7 @@
   border-bottom: 1px solid var(--pf-hair);
 }
 .pf-claim strong { color: var(--pf-ink); font-weight: 500; }
+.pf-museum strong { color: var(--pf-accent); }
 
 /* --------------------------------------------------------------------------
    Token panels (V1 / V2)
@@ -572,6 +573,7 @@ body.pf-home .pf-page {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  max-width: 640px; /* narrower on the landing — more breathing room on the sides */
 }
 
 /* Mobile: keep the masthead from overflowing the viewport (it was cutting off
