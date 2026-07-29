@@ -555,6 +555,7 @@ img.pf-punk-img { object-fit: cover; }
   margin-right: 5px;
   border: 1px solid var(--pf-hair);
 }
+.pf-none { color: var(--pf-meta); }
 .pf-loading,
 .pf-note {
   font-family: var(--pf-font-mono);

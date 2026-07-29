@@ -151,7 +151,7 @@ function tokenPanel(kind, id, token, enrich, acquiredAt) {
     </article>`;
   }
 
-  const { ens, os, ensRecords, isContract, is7702, contractName } = enrich;
+  const { ens, os, ensRecords, contractName } = enrich;
   const known = knownFor(token.owner, { codeHash: enrich.codeHash, contractName });
 
   // Evidence accumulator — each ref() appends a { text, href } source and
@@ -161,43 +161,36 @@ function tokenPanel(kind, id, token, enrich, acquiredAt) {
 
   const holderRef = ref(`evm.now/address/${short(token.owner)} · ownership (indexer)`, `${S.evmNowAddressBase}${token.owner}`);
 
-  // Identity row — ENS primary; curated label and OpenSea profile as sub-lines,
-  // each source-attributed. Refs called in visual (top-to-bottom) order.
-  let primary;
+  // Identity row — show whatever identity we have (ENS, curated label, OpenSea),
+  // best first with the rest as sub-lines. No provenance-tag boxes (the values
+  // already link to their source), and no "no ENS" placeholder — if there's
+  // nothing, say so plainly. Refs called in visual (top-to-bottom) order.
+  const signals = [];
   if (ens) {
     const av = ens.avatar
       ? `<img class="pf-ens-avatar" src="${esc(ens.avatar)}" alt="" width="16" height="16" onerror="this.style.display='none'">`
       : "";
-    primary = `${av}${esc(ens.name)}<span class="pf-tag">ENS</span>${ref(`ENS record · ${esc(ens.name)}`, `https://app.ens.domains/${encodeURIComponent(ens.name)}`)}`;
+    signals.push(`${av}${esc(ens.name)}${ref(`ENS record · ${esc(ens.name)}`, `https://app.ens.domains/${encodeURIComponent(ens.name)}`)}`);
   }
-  const subs = [];
   if (known)
-    subs.push(
-      `${esc(known.label)}<span class="pf-tag">curated</span>${ref(`Curated label · ${esc(known.label)}${contractName ? ` (${esc(contractName)})` : ""}`, known.url || `${S.evmNowAddressBase}${token.owner}`)}`
+    signals.push(
+      `${esc(known.label)}${ref(`Curated label · ${esc(known.label)}${contractName ? ` (${esc(contractName)})` : ""}`, known.url || `${S.evmNowAddressBase}${token.owner}`)}`
     );
+  if (os && os.username) {
+    const profileUrl = `${S.openseaAccountBase}${token.owner}`;
+    signals.push(
+      `<a href="${esc(profileUrl)}" target="_blank" rel="noopener">${esc(os.username)}</a>${ref(`OpenSea profile · ${esc(os.username)}`, profileUrl)}`
+    );
+  }
   // X handle from the ENS com.twitter text record (self-published, on-chain).
   const xHandle = ensRecords?.twitter;
   if (xHandle)
-    subs.push(
-      `X <a href="https://x.com/${encodeURIComponent(xHandle)}" target="_blank" rel="noopener">@${esc(xHandle)}</a><span class="pf-tag">ENS record</span>${ref(`ENS com.twitter record · @${esc(xHandle)}`, `https://x.com/${encodeURIComponent(xHandle)}`)}`
+    signals.push(
+      `X <a href="https://x.com/${encodeURIComponent(xHandle)}" target="_blank" rel="noopener">@${esc(xHandle)}</a>${ref(`ENS com.twitter record · @${esc(xHandle)}`, `https://x.com/${encodeURIComponent(xHandle)}`)}`
     );
-  // OpenSea username (links to the profile at opensea.io/{address}, where the
-  // profile page itself surfaces any connected socials).
-  if (os && os.username) {
-    const profileUrl = `${S.openseaAccountBase}${token.owner}`;
-    subs.push(
-      `<a href="${profileUrl}" target="_blank" rel="noopener">${esc(os.username)}</a><span class="pf-tag">OpenSea</span>${ref(`OpenSea profile · ${esc(os.username)}`, profileUrl)}`
-    );
-  }
-  if (!primary) {
-    if (subs.length) {
-      primary = `— no ENS<span class="pf-tag">on-chain</span>`;
-    } else {
-      const note = isContract ? "contract, no ENS" : is7702 ? "smart account, no ENS" : "no ENS, no curated label";
-      primary = `— ${note}<span class="pf-tag">on-chain</span>`;
-    }
-  }
-  const identity = primary + subs.map((s) => `<span class="pf-sub">${s}</span>`).join("");
+  const identity = signals.length
+    ? signals[0] + signals.slice(1).map((s) => `<span class="pf-sub">${s}</span>`).join("")
+    : `<span class="pf-none">no known on-chain identity</span>`;
 
   // Status + signs + optional lead
   const st = statusFor(enrich, known);
@@ -222,7 +215,7 @@ function tokenPanel(kind, id, token, enrich, acquiredAt) {
 
     <div class="pf-row">
       <div class="pf-row-label">Holder</div>
-      <div class="pf-row-value">${evmLink(token.owner)}<span class="pf-tag">indexer</span>${holderRef}${
+      <div class="pf-row-value">${evmLink(token.owner)}${holderRef}${
         acquiredAt ? `<span class="pf-sub">held since ${new Date(acquiredAt * 1000).toISOString().slice(0, 10)}</span>` : ""
       }</div>
     </div>
