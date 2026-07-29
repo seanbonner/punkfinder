@@ -77,7 +77,7 @@ const evmLink = (addr, text) =>
 // reachability, not good/bad: blue = reachable/recently active, grey = known
 // but quiet, amber = inactive, red = long inactive. `listed` (wine) and the §6
 // verdicts (vault/inst/burned) land with the market + status layers.
-function statusFor({ activity, isContract, ens, os }, known, museum, vault) {
+function statusFor({ activity, isContract, ens, os }, known, museum, vault, acquiredAt) {
   if (museum) return { key: "inst", label: `Held — ${museum.name}` };
   // A known vault overrides the activity tiers below — these wallets are built
   // to sit still, so dormancy here is deliberate custody, not a lost punk.
@@ -88,12 +88,20 @@ function statusFor({ activity, isContract, ens, os }, known, museum, vault) {
   if (isContract === true) {
     return name ? { key: "reachable", label: `Held — ${name}` } : { key: "known", label: "Held — contract" };
   }
+  const now = Date.now() / 1000;
   const last = activity?.lastOutboundAt;
-  const age = last != null ? Date.now() / 1000 - last : Infinity;
-  const recent = age <= DORMANT_AFTER;
+  const recent = last != null && now - last <= DORMANT_AFTER;
+  // A recent acquisition is proof of life on its own — a punk that just changed
+  // hands isn't lost, whatever the wallet's own outbound history looks like.
+  const acquiredRecently = acquiredAt != null && now - acquiredAt <= 2 * YEAR;
+  // Reachable through an identity regardless of transaction cadence.
   if (ens || os) return { key: recent ? "reachable" : "known", label: recent ? "Reachable" : "Reachable — quiet" };
+  // Never signed an outbound transaction — a receive-only / cold wallet, not the
+  // same as a wallet that has gone quiet for years. Don't file it under "lost".
+  if (last == null) return { key: "known", label: "Held — no outbound activity" };
   if (recent) return { key: "active", label: "Active — anonymous" };
-  if (age > 5 * YEAR) return { key: "lost", label: "Long inactive" };
+  // Long-dormant, but a recent inbound rules out "possibly lost".
+  if (now - last > 5 * YEAR && !acquiredRecently) return { key: "lost", label: "Long inactive" };
   return { key: "inactive", label: "Inactive" };
 }
 
@@ -120,7 +128,8 @@ function signsProse({ activity, isContract, is7702, ens, os }, known, museum, va
   const smart = is7702 ? "Smart-account wallet (EIP-7702). " : "";
   const last = activity?.lastOutboundAt;
   const when = last ? relTime(last) : null;
-  if (!when) return `${smart}No outbound transactions signed by this wallet on record.`;
+  if (!when)
+    return `${smart}No outbound transactions signed by this wallet on record — typically a receive-only or cold wallet, not a sign the punk is lost.`;
   const state = Date.now() / 1000 - last > DORMANT_AFTER ? "Dormant" : "Active";
   return `${smart}${state} — last signed transaction ${when} (whole-wallet, any activity).`;
 }
@@ -292,7 +301,7 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
 
   // Status + signs + optional lead. Museum's source ref lives in Identity, so no
   // duplicate here.
-  const st = statusFor(enrich, known, museum, vault);
+  const st = statusFor(enrich, known, museum, vault, acquiredAt);
   const signsRef = museum
     ? ""
     : ref(`evm.now/address/${short(token.owner)}/activity · last outbound tx`, `${S.evmNowAddressBase}${token.owner}/activity`);
