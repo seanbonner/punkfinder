@@ -11,7 +11,6 @@ import { knownFor } from "/js/known.js";
 import { resolveEns } from "/js/ens.js";
 import { resolveProfile } from "/js/identity.js";
 import { getTraits } from "/js/traits.js";
-import { renderPunkDataUri } from "/js/render.js";
 
 const S = window.SITE;
 const $ = (sel) => document.querySelector(sel);
@@ -326,15 +325,14 @@ async function render(id) {
       out.innerHTML = `<p class="pf-note"><strong>Case #${id} · not found.</strong> No V1 or V2 record for this id. Try another punk number, 0–9999.</p>`;
       return;
     }
-    const [enrichFor, claim, traits, imgSrc, acquired] = await Promise.all([
+    const [enrichFor, claim, traits, acquired] = await Promise.all([
       enrichOwners(v1, v2),
       fetchClaim(id).catch(() => null),
       getTraits(id).catch(() => null),
-      renderPunkDataUri(id).catch(() => null),
       fetchAcquired(id).catch(() => null),
     ]);
     out.innerHTML =
-      caseHead(id, v1, v2, traits, imgSrc) +
+      caseHead(id, v1, v2, traits) +
       claimLine(claim) +
       `<section class="pf-panels">${tokenPanel("V2", id, v2, enrichFor(v2), acquired?.v2)}${tokenPanel("V1", id, v1, enrichFor(v1), acquired?.v1)}</section>`;
     out.scrollIntoView({ behavior: "smooth", block: "nearest" });
