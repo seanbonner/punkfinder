@@ -154,11 +154,12 @@ function tokenPanel(kind, id, token, enrich, acquiredAt) {
   const { ens, os, ensRecords, isContract, is7702, contractName } = enrich;
   const known = knownFor(token.owner, { codeHash: enrich.codeHash, contractName });
 
-  // Evidence accumulator — each ref() appends a source and returns its number.
+  // Evidence accumulator — each ref() appends a { text, href } source and
+  // returns its superscript number. Every evidence item is a link to its source.
   const ev = [];
-  const ref = (source) => (ev.push(source), `<sup class="pf-ref">${ev.length}</sup>`);
+  const ref = (text, href) => (ev.push({ text, href }), `<sup class="pf-ref">${ev.length}</sup>`);
 
-  const holderRef = ref(`${evmLink(token.owner, `evm.now/address/${short(token.owner)}`)} · ownership via indexer`);
+  const holderRef = ref(`evm.now/address/${short(token.owner)} · ownership (indexer)`, `${S.evmNowAddressBase}${token.owner}`);
 
   // Identity row — ENS primary; curated label and OpenSea profile as sub-lines,
   // each source-attributed. Refs called in visual (top-to-bottom) order.
@@ -167,25 +168,25 @@ function tokenPanel(kind, id, token, enrich, acquiredAt) {
     const av = ens.avatar
       ? `<img class="pf-ens-avatar" src="${esc(ens.avatar)}" alt="" width="16" height="16" onerror="this.style.display='none'">`
       : "";
-    primary = `${av}${esc(ens.name)}<span class="pf-tag">ENS</span>${ref(`ENS reverse record · ${esc(ens.name)}`)}`;
+    primary = `${av}${esc(ens.name)}<span class="pf-tag">ENS</span>${ref(`ENS record · ${esc(ens.name)}`, `https://app.ens.domains/${encodeURIComponent(ens.name)}`)}`;
   }
   const subs = [];
   if (known)
     subs.push(
-      `${esc(known.label)}<span class="pf-tag">curated</span>${ref(`Curated label · ${esc(known.label)}${contractName ? ` (${esc(contractName)})` : ""}`)}`
+      `${esc(known.label)}<span class="pf-tag">curated</span>${ref(`Curated label · ${esc(known.label)}${contractName ? ` (${esc(contractName)})` : ""}`, known.url || `${S.evmNowAddressBase}${token.owner}`)}`
     );
   // X handle from the ENS com.twitter text record (self-published, on-chain).
   const xHandle = ensRecords?.twitter;
   if (xHandle)
     subs.push(
-      `X <a href="https://x.com/${esc(xHandle)}" target="_blank" rel="noopener">@${esc(xHandle)}</a><span class="pf-tag">ENS record</span>${ref(`ENS com.twitter record · @${esc(xHandle)}`)}`
+      `X <a href="https://x.com/${esc(xHandle)}" target="_blank" rel="noopener">@${esc(xHandle)}</a><span class="pf-tag">ENS record</span>${ref(`ENS com.twitter record · @${esc(xHandle)}`, `https://x.com/${xHandle}`)}`
     );
   // OpenSea username (links to the profile at opensea.io/{address}, where the
   // profile page itself surfaces any connected socials).
   if (os && os.username) {
     const profileUrl = `${S.openseaAccountBase}${token.owner}`;
     subs.push(
-      `<a href="${profileUrl}" target="_blank" rel="noopener">${esc(os.username)}</a><span class="pf-tag">OpenSea</span>${ref(`OpenSea profile · ${esc(os.username)} · opensea.io`)}`
+      `<a href="${profileUrl}" target="_blank" rel="noopener">${esc(os.username)}</a><span class="pf-tag">OpenSea</span>${ref(`OpenSea profile · ${esc(os.username)}`, profileUrl)}`
     );
   }
   if (!primary) {
@@ -200,7 +201,7 @@ function tokenPanel(kind, id, token, enrich, acquiredAt) {
 
   // Status + signs + optional lead
   const st = statusFor(enrich, known);
-  const signsRef = ref("Whole-wallet last outbound tx · evm.now / Blockscout");
+  const signsRef = ref(`evm.now/address/${short(token.owner)}/activity · last outbound tx`, `${S.evmNowAddressBase}${token.owner}/activity`);
   const lead = known
     ? `<aside class="pf-lead"><div class="pf-lead-label">Lead · ${esc(known.label)}</div><p>${esc(known.note)} <a href="${esc(known.url)}" target="_blank" rel="noopener">${esc(hostOf(known.url))} ↗</a></p></aside>`
     : "";
@@ -212,7 +213,9 @@ function tokenPanel(kind, id, token, enrich, acquiredAt) {
     )
     .join("");
 
-  const evidence = ev.map((s) => `<li>${s}</li>`).join("");
+  const evidence = ev
+    .map((e) => `<li>${e.href ? `<a href="${e.href}" target="_blank" rel="noopener">${e.text}</a>` : e.text}</li>`)
+    .join("");
 
   return `<article class="pf-panel">
     <header class="pf-panel-head"><h2 class="pf-panel-label">${kind} Token</h2>${contractLine}</header>
@@ -254,9 +257,7 @@ function caseHead(id, v1, v2, traits, imgSrc) {
   if (v1 && v2 && !isZero(v1.owner) && !isZero(v2.owner)) {
     custody = v1.owner.toLowerCase() === v2.owner.toLowerCase() ? "SAME CUSTODY (paired)" : "SPLIT CUSTODY";
   }
-  const eyebrow = traits
-    ? `Case #${id} · ${esc(traits.t)} · #${traits.r.toLocaleString()} rarity`
-    : `Case #${id} · CryptoPunk · V1 + V2`;
+  const eyebrow = traits ? `Case #${id} · ${esc(traits.t)}` : `Case #${id} · CryptoPunk · V1 + V2`;
   const attrs =
     traits && traits.a?.length
       ? `<div class="pf-case-attrs">${traits.a.map((a) => `<span>${esc(a)}</span>`).join("")}</div>`

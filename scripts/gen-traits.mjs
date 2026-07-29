@@ -28,25 +28,20 @@ const manifest = JSON.parse(bundledOfflinePunksData.manifestJson);
 const TOTAL = manifest.counts.punks;
 const client = offline.createOfflinePunksDataClientFromDataset(bundledOfflinePunksData);
 
-const RARITY_KINDS = new Set(["NormalizedType", "AttributeCount", "Accessory"]);
-
+// Compact output: array indexed by id, { t: type, a: [accessories], n: attrCount }.
+// No rarity rank — rarity is disputed/unreliable, so we don't compute or ship it.
 const punks = [];
 for (let id = 0; id < TOTAL; id++) {
   const p = client.getPunkSync(id, { includeTraits: true });
   const accessories = p.traits.filter((t) => t.kind === "Accessory").map((t) => t.name);
-  const score = p.traits.reduce((s, t) => (RARITY_KINDS.has(t.kind) ? s + TOTAL / t.supply : s), 0);
-  punks.push({ id, type: p.punkTypeName, acc: accessories, attrs: p.attributeCount, score });
+  punks.push({ t: p.punkTypeName, a: accessories, n: p.attributeCount });
 }
 
-// Rank by score, rarest first.
-[...punks].sort((a, b) => b.score - a.score).forEach((p, i) => (p.rank = i + 1));
-
-// Compact output: array indexed by id, { t: type, a: [accessories], n: attrCount, r: rank }.
 const out = {
   generatedAt: new Date().toISOString(),
   total: TOTAL,
   source: manifest.source,
-  punks: punks.map((p) => ({ t: p.type, a: p.acc, n: p.attrs, r: p.rank })),
+  punks,
 };
 
 const dest = join(ROOT, "data", "punks-traits.json");
