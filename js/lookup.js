@@ -276,10 +276,11 @@ function caseHead(id, v1, v2, traits, imgSrc) {
   </section>`;
 }
 
-function claimLine(claim) {
+function claimLine(claim, claimerEns) {
   if (!claim || !claim.at) return "";
   const date = new Date(claim.at * 1000).toISOString().slice(0, 10);
-  const by = claim.by && !isZero(claim.by) ? ` · originally claimed by ${evmLink(claim.by)}` : "";
+  // Show the original claimer's ENS name when they have one, else the address.
+  const by = claim.by && !isZero(claim.by) ? ` · originally claimed by ${evmLink(claim.by, claimerEns?.name)}` : "";
   return `<div class="pf-claim">Claimed <strong>${date}</strong>${by}</div>`;
 }
 
@@ -328,9 +329,10 @@ async function render(id) {
       getTraits(id).catch(() => null),
       fetchAcquired(id).catch(() => null),
     ]);
+    const claimerEns = claim?.by && !isZero(claim.by) ? await resolveEns(claim.by).catch(() => null) : null;
     out.innerHTML =
       caseHead(id, v1, v2, traits) +
-      claimLine(claim) +
+      claimLine(claim, claimerEns) +
       `<section class="pf-panels">${tokenPanel("V2", id, v2, enrichFor(v2), acquired?.v2)}${tokenPanel("V1", id, v1, enrichFor(v1), acquired?.v1)}</section>`;
     out.scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (err) {
