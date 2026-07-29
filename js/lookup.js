@@ -111,7 +111,7 @@ function custodySteps(token) {
   if (token.is_wrapped) {
     const name = WRAPPER_NAMES[token.wrapper] || token.wrapper || "wrapper";
     return [
-      { kind: `Wrapped · ${esc(name)}`, value: evmLink(token.native_owner), tag: "wrapper" },
+      { kind: `Wrapped · ${esc(name)}`, value: evmLink(token.native_owner) },
       { kind: "Wrapped-token holder", value: ownerLink },
     ];
   }
@@ -121,7 +121,7 @@ function custodySteps(token) {
       { kind: "Beneficial owner", value: ownerLink },
     ];
   }
-  return [{ kind: "Held wallet", value: ownerLink, tag: "direct" }];
+  return [{ kind: "Held wallet", value: ownerLink }];
 }
 
 // Link-outs scoped to one token — V1 and V2 have different holders, contracts,
@@ -202,7 +202,7 @@ function tokenPanel(kind, id, token, enrich, acquiredAt) {
   const custody = custodySteps(token)
     .map(
       (s) =>
-        `<li><span class="pf-kind">${s.kind}</span>${s.value}${s.tag ? ` <span class="pf-tag">${s.tag}</span>` : ""}</li>`
+        `<li><span class="pf-kind">${s.kind}</span>${s.value}</li>`
     )
     .join("");
 
