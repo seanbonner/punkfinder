@@ -21,7 +21,9 @@ const gondi = {
 };
 
 export const KNOWN = {
-  // (address-keyed one-offs go here)
+  // Larva Labs — original CryptoPunks creators; their official holdings wallet.
+  // Identity label only (no acquisition Lead).
+  "0x8088d74111a2368f5b7f0064a581d3bb72e6527e": { label: "Larva Labs" },
 };
 
 export const KNOWN_CODE = {

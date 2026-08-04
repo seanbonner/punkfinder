@@ -305,9 +305,12 @@ function tokenPanel(kind, id, token, enrich, acquiredAt, otherExists, curated) {
   const signsRef = museum
     ? ""
     : ref(`evm.now/address/${short(token.owner)}/activity · last outbound tx`, `${S.evmNowAddressBase}${token.owner}/activity`);
-  const lead = known
-    ? `<aside class="pf-lead"><div class="pf-lead-label">Lead · ${esc(known.label)}</div><p>${esc(known.note)} <a href="${esc(known.url)}" target="_blank" rel="noopener">${esc(hostOf(known.url))} ↗</a></p></aside>`
-    : "";
+  // A Lead is an actionable next step (e.g. settle a Gondi loan) — only for
+  // entries that carry a note + url. Pure identity labels (Larva Labs) skip it.
+  const lead =
+    known && known.note && known.url
+      ? `<aside class="pf-lead"><div class="pf-lead-label">Lead · ${esc(known.label)}</div><p>${esc(known.note)} <a href="${esc(known.url)}" target="_blank" rel="noopener">${esc(hostOf(known.url))} ↗</a></p></aside>`
+      : "";
 
   const steps = custodySteps(token);
   const custody = steps.map((s) => `<li><span class="pf-kind">${s.kind}</span>${s.value}</li>`).join("");
