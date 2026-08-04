@@ -46,7 +46,7 @@ const isZero = (a) => !a || a.toLowerCase() === ZERO;
 // curated BurnedPunks list (by id), not by inspecting wallets.
 const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
 const displayId = (id) => (String(id) === MAX_UINT256 ? "2²⁵⁶−1" : String(id));
-const punkLink = (id, text) => `<a href="/?punk=${encodeURIComponent(id)}">${esc(text ?? id)}</a>`;
+const punkLink = (id, text) => `<a href="/${encodeURIComponent(id)}">${esc(text ?? id)}</a>`;
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const today = () => new Date().toISOString().slice(0, 10);
@@ -481,6 +481,19 @@ async function render(rawId) {
   }
 }
 
+// The punk id from a clean path (/1812) or a legacy deep link (/?punk=1812).
+function idFromUrl() {
+  const path = location.pathname.match(/^\/(\d+)\/?$/);
+  if (path) return path[1];
+  const q = (new URLSearchParams(location.search).get("punk") || "").trim();
+  return /^\d+$/.test(q) ? q : "";
+}
+
+function showHome() {
+  document.body.classList.add("pf-home"); // centered landing until the first lookup
+  $("#pf-results").innerHTML = "";
+}
+
 function main() {
   const input = $("#pf-input");
   // Keep the input to digits only (id 0–9999; maxlength=4 caps the length).
@@ -491,18 +504,32 @@ function main() {
   $("#lookup-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const raw = input.value.trim();
-    history.replaceState(null, "", `?punk=${encodeURIComponent(raw)}`);
+    if (!/^\d+$/.test(raw)) return;
+    history.pushState(null, "", `/${raw}`); // clean URL: /1812
     render(raw);
   });
 
-  // Deep links (?punk=…) accept any digit id, including the out-of-range V1-only
-  // tokens the anomaly copy links to; typed input stays capped at 0–9999.
-  const param = (new URLSearchParams(location.search).get("punk") || "").trim();
-  if (/^\d+$/.test(param)) {
-    input.value = param;
-    render(param);
+  // Back/forward between lookups and the home screen.
+  window.addEventListener("popstate", () => {
+    const id = idFromUrl();
+    if (id) {
+      input.value = id;
+      render(id);
+    } else {
+      showHome();
+    }
+  });
+
+  // Deep links accept any digit id, including the out-of-range V1-only tokens the
+  // anomaly copy links to; typed input stays capped at 0–9999.
+  const id = idFromUrl();
+  if (id) {
+    input.value = id;
+    // Fold a legacy /?punk= link into the clean path so shares are canonical.
+    if (location.search) history.replaceState(null, "", `/${id}`);
+    render(id);
   } else {
-    document.body.classList.add("pf-home"); // centered landing until the first lookup
+    showHome();
   }
 }
 
